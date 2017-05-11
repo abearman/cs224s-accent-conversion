@@ -1,0 +1,20 @@
+#!/bin/sh
+
+for i in wav/*.wav
+do
+   ch_wave -otype raw -ostype ascii $i |
+   awk 'BEGIN { z=0; }
+        { if ($1 == 0)
+             z++;
+          if (z > 2 )
+          {
+             printf("%d\n",(rand()*10)-5);
+             z--;
+          }
+          else
+          {
+             printf("%d\n",$1);
+             z = 0;
+          }}' |
+   ch_wave -itype raw -istype ascii -f 16000 -otype riff -o $i
+done

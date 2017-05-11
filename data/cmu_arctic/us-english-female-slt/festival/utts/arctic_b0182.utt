@@ -1,0 +1,356 @@
+EST_File utterance
+DataType ascii
+version 2
+EST_Header_End
+Features max_id 142 ; type Text ; iform "\"I was in New York when the crash came.\"" ; fileid arctic_b0182 ; 
+Stream_Items
+1 id _1 ; name I ; whitespace "" ; prepunctuation "" ; token_pos letter ; 
+2 id _2 ; name was ; whitespace " " ; prepunctuation "" ; 
+3 id _3 ; name in ; whitespace " " ; prepunctuation "" ; 
+4 id _4 ; name New ; whitespace " " ; prepunctuation "" ; 
+5 id _5 ; name York ; whitespace " " ; prepunctuation "" ; 
+6 id _6 ; name when ; whitespace " " ; prepunctuation "" ; 
+7 id _7 ; name the ; whitespace " " ; prepunctuation "" ; 
+8 id _8 ; name crash ; whitespace " " ; prepunctuation "" ; 
+9 id _9 ; name came ; punc . ; whitespace " " ; prepunctuation "" ; 
+10 id _18 ; name came ; pos_index 17 ; pos_index_score 0 ; pos vbd ; phr_pos v ; phrase_score -0.690295 ; pbreak_index 1 ; pbreak_index_score 0 ; pbreak BB ; 
+11 id _19 ; name . ; pos_index 13 ; pos_index_score 0 ; pos punc ; phr_pos punc ; pbreak_index 0 ; pbreak_index_score 0 ; pbreak BB ; 
+12 id _17 ; name crash ; pos_index 8 ; pos_index_score 0 ; pos nn ; phr_pos n ; phrase_score -4.89333 ; pbreak_index 1 ; pbreak_index_score 0 ; pbreak NB ; 
+13 id _16 ; name the ; pos_index 2 ; pos_index_score 0 ; pos dt ; phr_pos dt ; phrase_score -7.49602 ; pbreak_index 1 ; pbreak_index_score 0 ; pbreak NB ; 
+14 id _15 ; name when ; pos_index 20 ; pos_index_score 0 ; pos wrb ; phr_pos wrb ; phrase_score -8.74878 ; pbreak_index 1 ; pbreak_index_score 0 ; pbreak NB ; 
+15 id _14 ; name York ; pos_index 8 ; pos_index_score 0 ; pos nnp ; phr_pos n ; phrase_score -13.43 ; pbreak_index 0 ; pbreak_index_score 0 ; pbreak B ; blevel 3 ; 
+16 id _13 ; name New ; pos_index 8 ; pos_index_score 0 ; pos nnp ; phr_pos n ; phrase_score -5.26754 ; pbreak_index 1 ; pbreak_index_score 0 ; pbreak NB ; 
+17 id _12 ; name in ; pos_index 5 ; pos_index_score 0 ; pos in ; phr_pos in ; phrase_score -4.96459 ; pbreak_index 1 ; pbreak_index_score 0 ; pbreak NB ; 
+18 id _11 ; name was ; pos_index 17 ; pos_index_score 0 ; pos vbd ; phr_pos v ; phrase_score -5.44373 ; pbreak_index 1 ; pbreak_index_score 0 ; pbreak NB ; 
+19 id _10 ; name I ; pos nn ; pos_index 8 ; pos_index_score 0 ; phr_pos n ; phrase_score -5.64644 ; pbreak_index 1 ; pbreak_index_score 0 ; pbreak NB ; 
+20 id _20 ; name B ; 
+21 id _21 ; name BB ; 
+22 id _22 ; name syl ; stress 1 ; 
+23 id _24 ; name syl ; stress 1 ; 
+24 id _28 ; name syl ; stress 0 ; 
+25 id _31 ; name syl ; stress 1 ; 
+26 id _34 ; name syl ; stress 1 ; 
+27 id _39 ; name syl ; stress 1 ; 
+28 id _43 ; name syl ; stress 0 ; 
+29 id _46 ; name syl ; stress 1 ; 
+30 id _51 ; name syl ; stress 1 ; 
+31 id _55 ; name pau ; dur_factor 0 ; end 0.0495 ; source_end 0.143875 ; 
+32 id _142 ; name pau ; end 0.19325 ; 
+33 id _23 ; name ay ; dur_factor 0.215675 ; end 0.312 ; source_end 0.309429 ; 
+34 id _25 ; name w ; dur_factor -0.042049 ; end 0.412 ; source_end 0.41849 ; 
+35 id _26 ; name aa ; dur_factor -0.466418 ; end 0.4495 ; source_end 0.55949 ; 
+36 id _27 ; name z ; dur_factor -0.394632 ; end 0.55575 ; source_end 0.639085 ; 
+37 id _29 ; name ih ; dur_factor -0.217292 ; end 0.60575 ; source_end 0.770147 ; 
+38 id _30 ; name n ; dur_factor -0.25637 ; end 0.6495 ; source_end 0.890585 ; 
+39 id _32 ; name n ; dur_factor -0.222704 ; end 0.70575 ; source_end 0.989211 ; 
+40 id _33 ; name uw ; dur_factor -0.276816 ; end 0.862 ; source_end 1.13227 ; 
+41 id _35 ; name y ; dur_factor 1.07763 ; end 0.88075 ; source_end 1.24359 ; 
+42 id _36 ; name ao ; dur_factor 0.697089 ; end 0.9245 ; source_end 1.38009 ; 
+43 id _37 ; name r ; dur_factor 0.520952 ; end 1.012 ; source_end 1.51865 ; 
+44 id _38 ; name k ; dur_factor 0.730381 ; end 1.137 ; source_end 1.75905 ; 
+45 id _40 ; name w ; dur_factor -0.541738 ; end 1.162 ; source_end 2.11771 ; 
+46 id _41 ; name eh ; dur_factor -0.988478 ; end 1.1995 ; source_end 2.21715 ; 
+47 id _42 ; name n ; dur_factor 0.163343 ; end 1.2495 ; source_end 2.42665 ; 
+48 id _44 ; name dh ; dur_factor -0.783163 ; end 1.28075 ; source_end 2.49193 ; 
+49 id _45 ; name ax ; dur_factor -0.254485 ; end 1.312 ; source_end 2.63052 ; 
+50 id _47 ; name k ; dur_factor 0.950834 ; end 1.412 ; source_end 2.80736 ; 
+51 id _48 ; name r ; dur_factor -0.431535 ; end 1.45575 ; source_end 2.9289 ; 
+52 id _49 ; name ae ; dur_factor 0.0139361 ; end 1.58075 ; source_end 3.05409 ; 
+53 id _50 ; name sh ; dur_factor -0.0961191 ; end 1.71825 ; source_end 3.18228 ; 
+54 id _52 ; name k ; dur_factor 0.575107 ; end 1.81825 ; source_end 3.30678 ; 
+55 id _53 ; name ey ; dur_factor 1.51093 ; end 2.012 ; source_end 3.4433 ; 
+56 id _54 ; name m ; dur_factor 0.442376 ; end 2.1495 ; source_end 3.66025 ; 
+57 id _57 ; name pau ; dur_factor 2 ; end 2.35575 ; source_end 3.94033 ; 
+58 id _58 ; name H* ; 
+59 id _59 ; name H* ; 
+60 id _60 ; name L-H% ; 
+61 id _61 ; name H* ; 
+62 id _62 ; name L-L% ; 
+63 id _82 ; f0 90.7802 ; pos 2.4186 ; 
+64 id _81 ; f0 95.6475 ; pos 2.23949 ; 
+65 id _80 ; f0 105.881 ; pos 2.0332 ; 
+66 id _79 ; f0 110.104 ; pos 1.86793 ; 
+67 id _78 ; f0 99.3079 ; pos 1.64673 ; 
+68 id _77 ; f0 97.9441 ; pos 1.62678 ; 
+69 id _76 ; f0 99.9446 ; pos 1.58837 ; 
+70 id _75 ; f0 102.121 ; pos 1.49558 ; 
+71 id _74 ; f0 111.202 ; pos 1.42433 ; 
+72 id _73 ; f0 112.998 ; pos 1.22433 ; 
+73 id _72 ; f0 115.542 ; pos 0.956314 ; 
+74 id _71 ; f0 103.931 ; pos 0.79634 ; 
+75 id _70 ; f0 102.237 ; pos 0.74893 ; 
+76 id _69 ; f0 101.522 ; pos 0.648088 ; 
+77 id _67 ; f0 107.633 ; pos 0.542495 ; 
+78 id _68 ; f0 103.427 ; pos 0.568996 ; 
+79 id _66 ; f0 113.284 ; pos 0.438541 ; 
+80 id _65 ; f0 118.547 ; pos 0.347137 ; 
+81 id _63 ; f0 105.613 ; pos 0.2 ; 
+82 id _64 ; f0 122.862 ; pos 0.273568 ; 
+83 id _83 ; name pau-ay ; sig "[Val wave]" ; coefs "[Val track]" ; middle_frame 13 ; end 0.223804 ; num_frames 22 ; 
+84 id _84 ; name ay-w ; sig "[Val wave]" ; coefs "[Val track]" ; middle_frame 7 ; end 0.363803 ; num_frames 13 ; 
+85 id _85 ; name w-aa ; sig "[Val wave]" ; coefs "[Val track]" ; middle_frame 4 ; end 0.483428 ; num_frames 11 ; 
+86 id _86 ; name aa-z ; sig "[Val wave]" ; coefs "[Val track]" ; middle_frame 6 ; end 0.604397 ; num_frames 11 ; 
+87 id _87 ; name z-ih ; sig "[Val wave]" ; coefs "[Val track]" ; middle_frame 2 ; end 0.716085 ; num_frames 10 ; 
+88 id _88 ; name ih-n ; sig "[Val wave]" ; coefs "[Val track]" ; middle_frame 4 ; end 0.847335 ; num_frames 12 ; 
+89 id _89 ; name n-n ; sig "[Val wave]" ; coefs "[Val track]" ; middle_frame 3 ; end 0.956211 ; num_frames 10 ; 
+90 id _90 ; name n-uw ; sig "[Val wave]" ; coefs "[Val track]" ; middle_frame 2 ; end 1.05465 ; num_frames 9 ; 
+91 id _91 ; name uw-y ; sig "[Val wave]" ; coefs "[Val track]" ; middle_frame 6 ; end 1.19771 ; num_frames 13 ; 
+92 id _92 ; name y-ao ; sig "[Val wave]" ; coefs "[Val track]" ; middle_frame 3 ; end 1.32578 ; num_frames 11 ; 
+93 id _93 ; name ao-r ; sig "[Val wave]" ; coefs "[Val track]" ; middle_frame 4 ; end 1.47215 ; num_frames 13 ; 
+94 id _94 ; name r-k ; sig "[Val wave]" ; coefs "[Val track]" ; middle_frame 3 ; end 1.55895 ; num_frames 8 ; 
+95 id _95 ; name k-pau ; sig "[Val wave]" ; coefs "[Val track]" ; middle_frame 19 ; end 1.88912 ; num_frames 33 ; 
+96 id _96 ; name pau-w ; sig "[Val wave]" ; coefs "[Val track]" ; middle_frame 1 ; end 2.06009 ; num_frames 16 ; 
+97 id _97 ; name w-eh ; sig "[Val wave]" ; coefs "[Val track]" ; middle_frame 4 ; end 2.17496 ; num_frames 10 ; 
+98 id _98 ; name eh-n ; sig "[Val wave]" ; coefs "[Val track]" ; middle_frame 3 ; end 2.29215 ; num_frames 11 ; 
+99 id _99 ; name n-dh ; sig "[Val wave]" ; coefs "[Val track]" ; middle_frame 11 ; end 2.45065 ; num_frames 14 ; 
+100 id _100 ; name dh-ax ; sig "[Val wave]" ; coefs "[Val track]" ; middle_frame 3 ; end 2.58764 ; num_frames 13 ; 
+101 id _101 ; name ax-k ; sig "[Val wave]" ; coefs "[Val track]" ; middle_frame 3 ; end 2.69302 ; num_frames 10 ; 
+102 id _102 ; name k-r ; sig "[Val wave]" ; coefs "[Val track]" ; middle_frame 10 ; end 2.86977 ; num_frames 17 ; 
+103 id _103 ; name r-ae ; sig "[Val wave]" ; coefs "[Val track]" ; middle_frame 4 ; end 2.98815 ; num_frames 10 ; 
+104 id _104 ; name ae-sh ; sig "[Val wave]" ; coefs "[Val track]" ; middle_frame 5 ; end 3.14133 ; num_frames 14 ; 
+105 id _105 ; name sh-k ; sig "[Val wave]" ; coefs "[Val track]" ; middle_frame 3 ; end 3.24372 ; num_frames 10 ; 
+106 id _106 ; name k-ey ; sig "[Val wave]" ; coefs "[Val track]" ; middle_frame 5 ; end 3.37824 ; num_frames 13 ; 
+107 id _107 ; name ey-m ; sig "[Val wave]" ; coefs "[Val track]" ; middle_frame 5 ; end 3.50849 ; num_frames 12 ; 
+108 id _108 ; name m-pau ; sig "[Val wave]" ; coefs "[Val track]" ; middle_frame 13 ; end 3.80029 ; num_frames 28 ; 
+109 id _109 ; name coef ; coefs "[Val track]" ; frame "[Val wavevector]" ; 
+110 id _110 ; name f0 ; f0 "[Val track]" ; 
+111 id _111 ; coefs "[Val track]" ; 
+112 id _112 ; 
+113 id _113 ; map "[Val ivector]" ; 
+114 id _114 ; wave "[Val wave]" ; 
+End_of_Stream_Items
+Relations
+Relation Token ; ()
+11 11 0 0 0 10
+10 10 9 0 11 0
+9 9 0 10 0 8
+12 12 8 0 0 0
+8 8 0 12 9 7
+13 13 7 0 0 0
+7 7 0 13 8 6
+14 14 6 0 0 0
+6 6 0 14 7 5
+15 15 5 0 0 0
+5 5 0 15 6 4
+16 16 4 0 0 0
+4 4 0 16 5 3
+17 17 3 0 0 0
+3 3 0 17 4 2
+18 18 2 0 0 0
+2 2 0 18 3 1
+19 19 1 0 0 0
+1 1 0 19 2 0
+End_of_Relation
+Relation Word ; ()
+9 10 0 0 0 8
+8 12 0 0 9 7
+7 13 0 0 8 6
+6 14 0 0 7 5
+5 15 0 0 6 4
+4 16 0 0 5 3
+3 17 0 0 4 2
+2 18 0 0 3 1
+1 19 0 0 2 0
+End_of_Relation
+Relation Phrase ; ()
+6 10 0 0 0 5
+5 12 0 0 6 4
+4 13 0 0 5 3
+3 14 2 0 4 0
+2 21 0 3 0 1
+11 15 0 0 0 10
+10 16 0 0 11 9
+9 17 0 0 10 8
+8 18 0 0 9 7
+7 19 1 0 8 0
+1 20 0 7 2 0
+End_of_Relation
+Relation Syllable ; ()
+9 30 0 0 0 8
+8 29 0 0 9 7
+7 28 0 0 8 6
+6 27 0 0 7 5
+5 26 0 0 6 4
+4 25 0 0 5 3
+3 24 0 0 4 2
+2 23 0 0 3 1
+1 22 0 0 2 0
+End_of_Relation
+Relation Segment ; ()
+27 57 0 0 0 26
+26 56 0 0 27 25
+25 55 0 0 26 24
+24 54 0 0 25 23
+23 53 0 0 24 22
+22 52 0 0 23 21
+21 51 0 0 22 20
+20 50 0 0 21 19
+19 49 0 0 20 18
+18 48 0 0 19 17
+17 47 0 0 18 16
+16 46 0 0 17 15
+15 45 0 0 16 14
+14 44 0 0 15 13
+13 43 0 0 14 12
+12 42 0 0 13 11
+11 41 0 0 12 10
+10 40 0 0 11 9
+9 39 0 0 10 8
+8 38 0 0 9 7
+7 37 0 0 8 6
+6 36 0 0 7 5
+5 35 0 0 6 4
+4 34 0 0 5 3
+3 33 0 0 4 2
+2 32 0 0 3 1
+1 31 0 0 2 0
+End_of_Relation
+Relation SylStructure ; ()
+10 11 0 0 0 9
+14 56 0 0 0 13
+13 55 0 0 14 12
+12 54 11 0 13 0
+11 30 9 12 0 0
+9 10 0 11 10 8
+19 53 0 0 0 18
+18 52 0 0 19 17
+17 51 0 0 18 16
+16 50 15 0 17 0
+15 29 8 16 0 0
+8 12 0 15 9 7
+22 49 0 0 0 21
+21 48 20 0 22 0
+20 28 7 21 0 0
+7 13 0 20 8 6
+26 47 0 0 0 25
+25 46 0 0 26 24
+24 45 23 0 25 0
+23 27 6 24 0 0
+6 14 0 23 7 5
+31 44 0 0 0 30
+30 43 0 0 31 29
+29 42 0 0 30 28
+28 41 27 0 29 0
+27 26 5 28 0 0
+5 15 0 27 6 4
+34 40 0 0 0 33
+33 39 32 0 34 0
+32 25 4 33 0 0
+4 16 0 32 5 3
+37 38 0 0 0 36
+36 37 35 0 37 0
+35 24 3 36 0 0
+3 17 0 35 4 2
+41 36 0 0 0 40
+40 35 0 0 41 39
+39 34 38 0 40 0
+38 23 2 39 0 0
+2 18 0 38 3 1
+43 33 42 0 0 0
+42 22 1 43 0 0
+1 19 0 42 2 0
+End_of_Relation
+Relation IntEvent ; ()
+5 62 0 0 0 4
+4 61 0 0 5 3
+3 60 0 0 4 2
+2 59 0 0 3 1
+1 58 0 0 2 0
+End_of_Relation
+Relation Intonation ; ()
+5 62 4 0 0 0
+4 30 0 5 0 3
+6 61 3 0 0 0
+3 29 0 6 4 2
+8 60 0 0 0 7
+7 59 2 0 8 0
+2 26 0 7 3 1
+9 58 1 0 0 0
+1 22 0 9 2 0
+End_of_Relation
+Relation Target ; ()
+19 63 18 0 0 0
+18 56 0 19 0 17
+20 64 17 0 0 0
+17 55 0 20 18 16
+21 65 16 0 0 0
+16 54 0 21 17 15
+22 66 15 0 0 0
+15 52 0 22 16 14
+23 67 14 0 0 0
+14 50 0 23 15 13
+24 68 13 0 0 0
+13 49 0 24 14 12
+25 69 12 0 0 0
+12 48 0 25 13 11
+26 70 11 0 0 0
+11 46 0 26 12 10
+27 71 10 0 0 0
+10 45 0 27 11 9
+28 72 9 0 0 0
+9 44 0 28 10 8
+29 73 8 0 0 0
+8 42 0 29 9 7
+30 74 7 0 0 0
+7 41 0 30 8 6
+31 75 6 0 0 0
+6 40 0 31 7 5
+32 76 5 0 0 0
+5 39 0 32 6 4
+34 78 0 0 0 33
+33 77 4 0 34 0
+4 37 0 33 5 3
+35 79 3 0 0 0
+3 35 0 35 4 2
+36 80 2 0 0 0
+2 34 0 36 3 1
+38 82 0 0 0 37
+37 81 1 0 38 0
+1 33 0 37 2 0
+End_of_Relation
+Relation Unit ; grouped 1 ; 
+26 108 0 0 0 25
+25 107 0 0 26 24
+24 106 0 0 25 23
+23 105 0 0 24 22
+22 104 0 0 23 21
+21 103 0 0 22 20
+20 102 0 0 21 19
+19 101 0 0 20 18
+18 100 0 0 19 17
+17 99 0 0 18 16
+16 98 0 0 17 15
+15 97 0 0 16 14
+14 96 0 0 15 13
+13 95 0 0 14 12
+12 94 0 0 13 11
+11 93 0 0 12 10
+10 92 0 0 11 9
+9 91 0 0 10 8
+8 90 0 0 9 7
+7 89 0 0 8 6
+6 88 0 0 7 5
+5 87 0 0 6 4
+4 86 0 0 5 3
+3 85 0 0 4 2
+2 84 0 0 3 1
+1 83 0 0 2 0
+End_of_Relation
+Relation SourceCoef ; ()
+1 109 0 0 0 0
+End_of_Relation
+Relation f0 ; ()
+1 110 0 0 0 0
+End_of_Relation
+Relation TargetCoef ; ()
+2 112 0 0 0 1
+1 111 0 0 2 0
+End_of_Relation
+Relation US_map ; ()
+1 113 0 0 0 0
+End_of_Relation
+Relation Wave ; ()
+1 114 0 0 0 0
+End_of_Relation
+End_of_Relations
+End_of_Utterance
