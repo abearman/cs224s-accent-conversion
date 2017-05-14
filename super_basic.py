@@ -1,8 +1,9 @@
 import os
-import numpy
+import numpy as np
 import scipy.io.wavfile as wav
 from python_speech_features import mfcc
-from sklearn.naive_bayes import GaussianNB
+#from sklearn.naive_bayes import MultinomialNB
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, accuracy_score
 
 def classify():
@@ -81,11 +82,15 @@ def classify():
 				data.append(datapoint)
 				labels.append(3) # 3 = indian
 
-	model = GaussianNB()
+	model = LogisticRegression()
 	model.fit(data, labels)
 	print 'model fit'
 	pred = model.predict(test_data)
 	print(classification_report(pred, test_labels))
 	print(accuracy_score(pred, test_labels))
+
+	for i, class_label in enumerate([0, 1, 2, 3]):
+		top10 = np.argsort(model.coef_[i])[-10:]
+		print("%s: %s" % (class_label, " ".join(str(j) for j in top10)))
 
 classify()
