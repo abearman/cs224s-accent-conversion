@@ -1,12 +1,12 @@
 import time
-
+from time import gmtime, strftime
 import numpy as np
-import tensorflow as tf
-
 import os
+
 import scipy.io.wavfile as wav
 from python_speech_features import mfcc
 
+import tensorflow as tf
 from tensorflow.python.ops.nn import dynamic_rnn
 
 from utils.general_utils import get_minibatches
@@ -26,6 +26,7 @@ class Config(object):
 		n_mfcc_features = 13		
 		state_size = 200
 		dropout_keep_prob = 1.0 # 0.8
+		logs_path = "tensorboard/" + strftime("%Y_%m_%d_%H_%M_%S", gmtime())
 
 
 class RNNModel(object):
@@ -135,10 +136,23 @@ class RNNModel(object):
 				Returns:
 						loss: A 0-d tensor (scalar)
 				"""
-				# Euclidean distance between x1,x2
-				unmasked_loss = tf.sqrt( tf.reduce_sum(tf.square(tf.subtract(self.labels_placeholder, pred))) )
-				print "loss: ", unmasked_loss
-				return unmasked_loss
+				# Euclidean distance between predictions, labels
+				# Shape: (?, max_num_frames, n_mfcc_features)
+				unmasked_subtracted_arr = tf.subtract(self.labels_placeholder, pred)
+				print "subtract: ", unmasked_subtracted_arr
+
+				# Shape: (?, max_num_frames, n_mfcc_features)
+				masked_subtracted_arr = tf.boolean_mask(unmasked_subtracted_arr, self.input_masks_placeholder)
+				print "subtracted masked: ", masked_subtracted_arr
+
+				# Shape: (?, max_num_frames, n_mfcc_features)
+				squared_masked_subtracted_arr = tf.square(masked_subtracted_arr)
+
+				# Shape: ()
+				loss = tf.sqrt( tf.reduce_sum(squared_masked_subtracted_arr) ) 
+
+				print "loss: ", loss 
+				return loss 
 
 
 		def add_training_op(self, loss):
@@ -176,11 +190,11 @@ class RNNModel(object):
 				"""
 				feed = self.create_feed_dict(inputs_batch, input_masks_batch, 
 																		 labels_batch=labels_batch, label_masks_batch=label_masks_batch)
-				_, loss = sess.run([self.train_op, self.loss], feed_dict=feed)
-				return loss
+				_, loss, summary = sess.run([self.train_op, self.loss, self.merged_summary_op], feed_dict=feed)
+				return loss, summary
 
 
-		def run_epoch(self, sess, inputs, labels, input_masks, label_masks):
+		def run_epoch(self, sess, inputs, labels, input_masks, label_masks, train_writer, step_i):
 				"""Runs an epoch of training.
 
 				Args:
@@ -189,6 +203,9 @@ class RNNModel(object):
 						labels: np.ndarray of shape (n_samples, n_classes)
 						input_masks: boolean np.ndarray of shape (max_num_frames,)
 						label_masks: boolean np.ndarray of shape (max_num_frames,)
+						train_writer: a tf.summary.FileWriter object
+						step_i: The global number of steps taken so far (i.e., batches we've done a full forward
+										and backward pass on) 
 				Returns:
 						average_loss: scalar. Average minibatch loss of model on epoch.
 				"""
@@ -196,8 +213,14 @@ class RNNModel(object):
 				for input_batch, labels_batch, input_masks_batch, label_masks_batch in \
 										get_minibatches([inputs, labels, input_masks, label_masks], self.config.batch_size):
 						n_minibatches += 1
-						total_loss += self.train_on_batch(sess, input_batch, input_masks_batch, labels_batch, label_masks_batch)
-				return total_loss / n_minibatches
+						batch_loss, summary = self.train_on_batch(sess, input_batch, input_masks_batch, labels_batch, label_masks_batch)
+						total_loss += batch_loss
+
+						train_writer.add_summary(summary, step_i)
+						print "step_i: ", step_i
+						step_i += 1
+
+				return total_loss / n_minibatches, step_i
 
 
 		def optimize(self, sess, inputs, labels, input_masks, label_masks):
@@ -212,15 +235,22 @@ class RNNModel(object):
 				Returns:
 						losses: list of loss per epoch
 				"""
+				train_writer = tf.summary.FileWriter(self.config.logs_path + '/train', sess.graph)
+				step_i = 0
+
 				losses = []
 				for epoch in range(self.config.n_epochs):
 						start_time = time.time()
-						average_loss = self.run_epoch(sess, inputs, labels, input_masks, label_masks)
+						average_loss, step_i = self.run_epoch(sess, inputs, labels, input_masks, label_masks, train_writer, step_i)
 						duration = time.time() - start_time
 						print 'Epoch {:}: loss = {:.2f} ({:.3f} sec)'.format(epoch, average_loss, duration)
 						losses.append(average_loss)
 				return losses
 
+
+		def add_summary_op(self):
+				return tf.summary.merge_all()
+	
 
 		def __init__(self, config):
 				"""Initializes the model.
@@ -236,7 +266,10 @@ class RNNModel(object):
 				self.add_placeholders()
 				self.pred = self.add_prediction_op()
 				self.loss = self.add_loss_op(self.pred)
+				tf.summary.scalar("loss", self.loss)
 				self.train_op = self.add_training_op(self.loss)
+				self.merged_summary_op = self.add_summary_op()
+				print "self.merged_summary_op: ", self.merged_summary_op
 
 
 def preprocess_data(config):
