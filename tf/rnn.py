@@ -27,7 +27,7 @@ class Config(object):
 
 
 class RNNModel(object):
-		"""Implements a Softmax classifier with cross-entropy loss."""
+		"""Implements an LSTM machine translation-esque baseline model with a regression loss."""
 
 		def add_placeholders(self):
 				"""Generates placeholder variables to represent the input tensors.
@@ -38,20 +38,27 @@ class RNNModel(object):
 				Adds following nodes to the computational graph
 
 				input_placeholder: Input placeholder tensor of shape
-																							(batch_size, n_features), type tf.float32
+													 (batch_size, max_num_frames, n_mfcc_features), type tf.float32
 				labels_placeholder: Labels placeholder tensor of shape
-																							(batch_size, n_classes), type tf.int32
+														(batch_size, max_num_frames, n_mfcc_features), type tf.float32
+				input_masks_placeholder: Input masks placeholder tensor of shape
+                   			         (batch_size, max_num_frames), type tf.bool
+        labels_masks_placeholder: Labels masks placeholder tensor of shape
+                         			    (batch_size, max_num_frames), type tf.bool
 
 				Add these placeholders to self as the instance variables
 						self.input_placeholder
 						self.labels_placeholder
+						self.input_masks_placeholder
+						self.label_masks_placeholder
 				"""
-				### YOUR CODE HERE
-				self.input_placeholder = tf.placeholder(tf.float32, (self.config.batch_size, self.config.max_num_frames, self.config.n_mfcc_features))
-				self.labels_placeholder = tf.placeholder(tf.int32, (self.config.batch_size, self.config.max_num_frames, self.config.n_mfcc_features))
-				### END YOUR CODE
+				self.input_placeholder = tf.placeholder(tf.float32, (None, self.config.max_num_frames, self.config.n_mfcc_features))
+				self.labels_placeholder = tf.placeholder(tf.int32, (None, self.config.max_num_frames, self.config.n_mfcc_features))
+				self.input_masks_placeholder = tf.placeholder(tf.bool, (None, self.config.max_num_frames))
+				self.label_masks_placeholder = tf.placeholder(tf.bool, (None, self.config.max_num_frames)) 
 
-		def create_feed_dict(self, inputs_batch, labels_batch=None):
+
+		def create_feed_dict(self, inputs_batch, input_masks_batch, labels_batch=None, label_masks_batch=None):
 				"""Creates the feed_dict for training the given step.
 
 				A feed_dict takes the form of:
@@ -62,16 +69,18 @@ class RNNModel(object):
 				
 				Args:
 						inputs_batch: A batch of input data.
-						labels_batch: A batch of label data.
+						input_masks_batch: A batch of input masks.
+						labels_batch: (Optional) a batch of label data.
+						labels_mask_batch: (Optional) a batch of label masks.
 				Returns:
 						feed_dict: The feed dictionary mapping from placeholders to values.
 				"""
-				### YOUR CODE HERE
 				feed_dict = {
 					self.input_placeholder: inputs_batch,
-					self.labels_placeholder: labels_batch
+					self.labels_placeholder: labels_batch,
+					self.input_masks_placeholder: input_masks_batch,
+					self.label_masks_placeholder: label_masks_batch
 				}
-				### END YOUR CODE
 				return feed_dict
 
 		def add_prediction_op(self):
@@ -90,12 +99,10 @@ class RNNModel(object):
 				Returns:
 						pred: A tensor of shape (batch_size, n_classes)
 				"""
-				### YOUR CODE HERE
 				b = tf.Variable(tf.zeros((self.config.batch_size,)))
 				W = tf.Variable(tf.zeros((self.config.n_features, self.config.n_classes)))
 				xW = tf.matmul(self.input_placeholder, W)
 				pred = softmax(tf.transpose(tf.transpose(xW) + b))
-				### END YOUR CODE
 				return pred
 
 		def add_loss_op(self, pred):
@@ -108,9 +115,7 @@ class RNNModel(object):
 				Returns:
 						loss: A 0-d tensor (scalar)
 				"""
-				### YOUR CODE HERE
 				loss = cross_entropy_loss(self.labels_placeholder, pred)
-				### END YOUR CODE
 				return loss
 
 		def add_training_op(self, loss):
@@ -132,9 +137,7 @@ class RNNModel(object):
 				Returns:
 						train_op: The Op for training.
 				"""
-				### YOUR CODE HERE
 				train_op = tf.train.GradientDescentOptimizer(self.config.lr).minimize(loss)
-				### END YOUR CODE
 				return train_op
 
 
