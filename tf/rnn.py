@@ -24,6 +24,8 @@ class Config(object):
 		lr = 1e-4
 		max_num_frames = 582 
 		n_mfcc_features = 13		
+		state_size = 200
+		dropout_keep_prob = 1.0 # 0.8
 
 
 class RNNModel(object):
@@ -42,9 +44,9 @@ class RNNModel(object):
 				labels_placeholder: Labels placeholder tensor of shape
 														(batch_size, max_num_frames, n_mfcc_features), type tf.float32
 				input_masks_placeholder: Input masks placeholder tensor of shape
-                   			         (batch_size, max_num_frames), type tf.bool
-        labels_masks_placeholder: Labels masks placeholder tensor of shape
-                         			    (batch_size, max_num_frames), type tf.bool
+																 (batch_size, max_num_frames), type tf.bool
+				labels_masks_placeholder: Labels masks placeholder tensor of shape
+																	(batch_size, max_num_frames), type tf.bool
 
 				Add these placeholders to self as the instance variables
 						self.input_placeholder
@@ -53,7 +55,7 @@ class RNNModel(object):
 						self.label_masks_placeholder
 				"""
 				self.input_placeholder = tf.placeholder(tf.float32, (None, self.config.max_num_frames, self.config.n_mfcc_features))
-				self.labels_placeholder = tf.placeholder(tf.int32, (None, self.config.max_num_frames, self.config.n_mfcc_features))
+				self.labels_placeholder = tf.placeholder(tf.float32, (None, self.config.max_num_frames, self.config.n_mfcc_features))
 				self.input_masks_placeholder = tf.placeholder(tf.bool, (None, self.config.max_num_frames))
 				self.label_masks_placeholder = tf.placeholder(tf.bool, (None, self.config.max_num_frames)) 
 
@@ -83,7 +85,8 @@ class RNNModel(object):
 				}
 				return feed_dict
 
-		def add_prediction_op(self):
+
+		def add_prediction_op(self): 
 				"""Adds the core transformation for this model which transforms a batch of input
 				data into a batch of predictions. In this case, the transformation is a linear layer plus a
 				softmax transformation:
@@ -94,16 +97,33 @@ class RNNModel(object):
 				Hint: For this simple use-case, it's sufficient to initialize both weights W
 										and biases b with zeros.
 
-				Args:
-						input_data: A tensor of shape (batch_size, n_features).
 				Returns:
 						pred: A tensor of shape (batch_size, n_classes)
 				"""
-				b = tf.Variable(tf.zeros((self.config.batch_size,)))
-				W = tf.Variable(tf.zeros((self.config.n_features, self.config.n_classes)))
-				xW = tf.matmul(self.input_placeholder, W)
-				pred = softmax(tf.transpose(tf.transpose(xW) + b))
-				return pred
+				
+				lstm_cell = tf.contrib.rnn.LSTMCell(self.config.state_size)
+				lstm_cell = tf.contrib.rnn.DropoutWrapper(lstm_cell, input_keep_prob=self.config.dropout_keep_prob)
+
+				print "inputs: ", self.input_placeholder
+
+				source_num_frames = tf.reduce_sum(tf.cast(self.input_masks_placeholder, tf.int32), reduction_indices=1)
+				outputs, final_state = dynamic_rnn(lstm_cell, self.input_placeholder, sequence_length=source_num_frames, dtype=tf.float32)
+
+				print "LSTM outputs: ", outputs
+				print "final state: ", final_state
+
+				xavier = tf.contrib.layers.xavier_initializer()
+				W = tf.get_variable("W", shape=(self.config.state_size, self.config.n_mfcc_features), initializer=xavier) 
+				b = tf.get_variable("b", shape=(1, self.config.n_mfcc_features))
+
+				outputs = tf.reshape(outputs, [-1, self.config.state_size])
+				mfcc_preds = tf.matmul(outputs, W)
+				mfcc_preds = tf.reshape(mfcc_preds, [-1, self.config.max_num_frames, self.config.n_mfcc_features])
+				mfcc_preds += b
+				print "mfcc_preds: ", mfcc_preds
+
+				return mfcc_preds 
+
 
 		def add_loss_op(self, pred):
 				"""Adds cross_entropy_loss ops to the computational graph.
@@ -111,12 +131,15 @@ class RNNModel(object):
 				Hint: Use the cross_entropy_loss function we defined. This should be a very
 										short function.
 				Args:
-						pred: A tensor of shape (batch_size, n_classes)
+						pred: A tensor of shape (batch_size, max_num_frames, n_mfcc_features)
 				Returns:
 						loss: A 0-d tensor (scalar)
 				"""
-				loss = cross_entropy_loss(self.labels_placeholder, pred)
-				return loss
+				# Euclidean distance between x1,x2
+				unmasked_loss = tf.sqrt( tf.reduce_sum(tf.square(tf.subtract(self.labels_placeholder, pred))) )
+				print "loss: ", unmasked_loss
+				return unmasked_loss
+
 
 		def add_training_op(self, loss):
 				"""Sets up the training Ops.
@@ -141,7 +164,7 @@ class RNNModel(object):
 				return train_op
 
 
-		def train_on_batch(self, sess, inputs_batch, labels_batch):
+		def train_on_batch(self, sess, inputs_batch, input_masks_batch, labels_batch, label_masks_batch):
 				"""Perform one step of gradient descent on the provided batch of data.
 
 				Args:
@@ -151,7 +174,8 @@ class RNNModel(object):
 				Returns:
 						loss: loss over the batch (a scalar)
 				"""
-				feed = self.create_feed_dict(inputs_batch, labels_batch=labels_batch)
+				feed = self.create_feed_dict(inputs_batch, input_masks_batch, 
+																		 labels_batch=labels_batch, label_masks_batch=label_masks_batch)
 				_, loss = sess.run([self.train_op, self.loss], feed_dict=feed)
 				return loss
 
@@ -172,7 +196,7 @@ class RNNModel(object):
 				for input_batch, labels_batch, input_masks_batch, label_masks_batch in \
 										get_minibatches([inputs, labels, input_masks, label_masks], self.config.batch_size):
 						n_minibatches += 1
-						total_loss += self.train_on_batch(sess, input_batch, labels_batch)
+						total_loss += self.train_on_batch(sess, input_batch, input_masks_batch, labels_batch, label_masks_batch)
 				return total_loss / n_minibatches
 
 
@@ -194,7 +218,7 @@ class RNNModel(object):
 						average_loss = self.run_epoch(sess, inputs, labels, input_masks, label_masks)
 						duration = time.time() - start_time
 						print 'Epoch {:}: loss = {:.2f} ({:.3f} sec)'.format(epoch, average_loss, duration)
-						losses.append(average_los)
+						losses.append(average_loss)
 				return losses
 
 
@@ -279,8 +303,9 @@ def main():
 		"""Main entry method for this file."""
 		config = Config()
 
-		print "Preprocessing data"
+		print "Preprocessing data ..."
 		inputs, labels, input_masks, label_masks = preprocess_data(config)
+		print "Finished preprocessing data"
 
 		# Tell TensorFlow that the model will be built into the default Graph.
 		# (not required but good practice)
