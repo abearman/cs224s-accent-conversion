@@ -45,9 +45,9 @@ class RNNModel(object):
 				labels_placeholder: Labels placeholder tensor of shape
 														(batch_size, max_num_frames, n_mfcc_features), type tf.float32
 				input_masks_placeholder: Input masks placeholder tensor of shape
-																 (batch_size, max_num_frames), type tf.bool
+																 (batch_size, max_num_frames, n_mfcc_features), type tf.bool
 				labels_masks_placeholder: Labels masks placeholder tensor of shape
-																	(batch_size, max_num_frames), type tf.bool
+																	(batch_size, max_num_frames, n_mfcc_features), type tf.bool
 
 				Add these placeholders to self as the instance variables
 						self.input_placeholder
@@ -57,8 +57,8 @@ class RNNModel(object):
 				"""
 				self.input_placeholder = tf.placeholder(tf.float32, (None, self.config.max_num_frames, self.config.n_mfcc_features))
 				self.labels_placeholder = tf.placeholder(tf.float32, (None, self.config.max_num_frames, self.config.n_mfcc_features))
-				self.input_masks_placeholder = tf.placeholder(tf.bool, (None, self.config.max_num_frames))
-				self.label_masks_placeholder = tf.placeholder(tf.bool, (None, self.config.max_num_frames)) 
+				self.input_masks_placeholder = tf.placeholder(tf.bool, (None, self.config.max_num_frames, self.config.n_mfcc_features))
+				self.label_masks_placeholder = tf.placeholder(tf.bool, (None, self.config.max_num_frames, self.config.n_mfcc_features)) 
 
 
 		def create_feed_dict(self, inputs_batch, input_masks_batch, labels_batch=None, label_masks_batch=None):
@@ -107,7 +107,9 @@ class RNNModel(object):
 
 				print "inputs: ", self.input_placeholder
 
-				source_num_frames = tf.reduce_sum(tf.cast(self.input_masks_placeholder, tf.int32), reduction_indices=1)
+				# Masks are shape (?, 582, 13), but the last dimension is redundant, so we get rid of it when calculating
+				# the sequence length for the LSTM
+				source_num_frames = tf.reduce_sum(tf.cast(self.input_masks_placeholder[:,:,0], tf.int32), reduction_indices=1)
 				outputs, final_state = dynamic_rnn(lstm_cell, self.input_placeholder, sequence_length=source_num_frames, dtype=tf.float32)
 
 				print "LSTM outputs: ", outputs
@@ -142,7 +144,11 @@ class RNNModel(object):
 				print "subtract: ", unmasked_subtracted_arr
 
 				# Shape: (?, max_num_frames, n_mfcc_features)
-				masked_subtracted_arr = tf.boolean_mask(unmasked_subtracted_arr, self.input_masks_placeholder)
+				print "input masks placeholder: ", self.input_masks_placeholder 
+				#masked_subtracted_arr = tf.boolean_mask(unmasked_subtracted_arr, self.input_masks_placeholder)
+				#masked_subtracted_arr = unmasked_subtracted_arr & tf.cast(self.input_masks_placeholder, tf.float32)
+				zeros = tf.zeros_like(unmasked_subtracted_arr)
+				masked_subtracted_arr = tf.where(self.input_masks_placeholder, unmasked_subtracted_arr, zeros)
 				print "subtracted masked: ", masked_subtracted_arr
 
 				# Shape: (?, max_num_frames, n_mfcc_features)
@@ -308,28 +314,34 @@ def preprocess_data(config):
 	return inputs, labels, input_masks, label_masks 
 
 
-def pad_sequence(mfcc_frames, max_num_frames):
+def pad_sequence(mfcc_features, max_num_frames):
 	"""
 	Args:
-		mfcc_frames: A numpy array of shape (num_frames, n_mfcc_features)
+		mfcc_features: A numpy array of shape (num_frames, n_mfcc_features)
 		max_length: Tee maximum length to which the array should be truncated or zero-padded 
 	"""
-	padded_mfcc_frames = np.zeros((max_num_frames, mfcc_frames.shape[1]))
-	mask = []
+	num_frames = mfcc_features.shape[0]
+	num_features = mfcc_features.shape[1]
+
+	padded_mfcc_features = np.zeros((max_num_frames, num_features)) 
+	mask = np.zeros((max_num_frames, num_features), dtype=bool)
 
 	# Truncate (or fill exactly
-	if mfcc_frames.shape[0] >= max_num_frames:	
-		padded_mfcc_frames = mfcc_frames[0:max_num_frames,:]
-		mask = [True] * max_num_frames 
+	if num_frames >= max_num_frames:	
+		padded_mfcc_eatures = mfcc_features[0:max_num_frames,:]
+		mask = np.ones((max_num_frames, num_features), dtype=bool)  # All True's 
 
 	# Append 0 MFCC vectors
-	elif mfcc_frames.shape[0] < max_num_frames:		
-		delta = max_num_frames - mfcc_frames.shape[0]	
-		zeros = np.zeros((delta, mfcc_frames.shape[1]))
-		padded_mfcc_frames = np.concatenate((mfcc_frames, zeros), axis=0)
-		mask = ([True] * mfcc_frames.shape[0]) + ([False] * delta)
+	elif num_frames < max_num_frames:		
+		delta = max_num_frames - num_frames 
+		zeros = np.zeros((delta, num_features)) 
+		padded_mfcc_features = np.concatenate((mfcc_features, zeros), axis=0)
 
-	return (padded_mfcc_frames, mask)
+		trues = np.ones((num_frames, num_features), dtype=bool)
+		falses = np.zeros((delta, num_features), dtype=bool) 
+		mask = np.concatenate((trues, falses), axis=0)
+
+	return (padded_mfcc_features, mask)
 
 
 def main():
