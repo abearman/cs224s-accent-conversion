@@ -1,8 +1,9 @@
 import os
-import numpy
+import numpy as np
 import scipy.io.wavfile as wav
 from python_speech_features import mfcc
-from sklearn.naive_bayes import GaussianNB
+#from sklearn.naive_bayes import MultinomialNB
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, accuracy_score
 from sklearn.svm import SVC
 
@@ -89,12 +90,22 @@ def classify():
 	print(classification_report(pred, test_labels))
 	print(accuracy_score(pred, test_labels))
 
-	print 'SVM model fit'
-	svm_model = SVC()
-	svm_model.fit(data, labels)
-	pred = svm_model.predict(test_data)
+	#print 'SVM model fit'
+	#svm_model = SVC()
+	#svm_model.fit(data, labels)
+	#pred = svm_model.predict(test_data)
+	#print(classification_report(pred, test_labels))
+	#print(accuracy_score(pred, test_labels))
+
+	print "Logistic regression model fit"
+	model = LogisticRegression()
+	model.fit(data, labels)
+	pred = model.predict(test_data)
 	print(classification_report(pred, test_labels))
 	print(accuracy_score(pred, test_labels))
 
+	for i, class_label in enumerate([0, 1, 2, 3]):
+		top10 = np.argsort(model.coef_[i])[-10:]
+		print("%s: %s" % (class_label, " ".join(str(j) for j in top10)))
 
 classify()
