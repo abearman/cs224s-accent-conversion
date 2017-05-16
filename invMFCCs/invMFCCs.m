@@ -1,6 +1,8 @@
-clc;clear all; 
-infilename = 'arctic_b0539.wav';
-[speech.clean,fs] = audioread(infilename); %wavread(infilename);
+function [] = invMFCCs(infilepath)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% infilename = 'arctic_b0539.wav';
+[speech.clean,fs] = audioread(infilepath); %wavread(infilename);
+[infile_pathstr,infilename,infile_ext] = fileparts(infilepath);
 wav = speech.clean;
 L = 256; % frame length
 nfft = 256;% DFT size
@@ -22,7 +24,7 @@ window  = win;
 Y=stft(wav,window,inc,nfft);
 Y=abs(Y);
 %% Specify the number of Mel filter bands
-MelBankVec = [10 20 30 40 50 60 70];
+MelBankVec = [10 20 30 40 50 60 70 80 90 100];
 
 for MelBankIndex =1:length(MelBankVec)
     MelBankNum = MelBankVec(MelBankIndex);

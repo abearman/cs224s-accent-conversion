@@ -2,6 +2,7 @@ from time import time, gmtime, strftime
 import numpy as np
 import os
 import random
+import matlab.engine
 
 import scipy.io.wavfile as wav
 from python_speech_features import mfcc
@@ -10,7 +11,7 @@ import tensorflow as tf
 from tensorflow.python.ops.nn import dynamic_rnn
 
 from utils.general_utils import get_minibatches
-
+from mfcc2wav import mfcc2wav 
 
 class Config(object):
 		"""Holds model hyperparams and data information.
@@ -300,6 +301,17 @@ def preprocess_data(config):
 		source_mfcc_features = mfcc(source_wav_data, source_sample_rate)	 # Returns a numpy array of num_frames x num_cepstrals
 		target_mfcc_features = mfcc(target_wav_data, target_sample_rate) 
 	
+		#wav.write('test_src.wav', source_sample_rate, source_wav_data)
+		#mfcc2wav(source_wav_data, source_mfcc_features, samplerate=source_sample_rate)		
+
+		print "Starting matlab ... type in your password if prompted"
+		eng = matlab.engine.start_matlab()
+		eng.addpath('../invMFCCs')
+		print "Running invMFCCs on wav file: ", source_fname
+		eng.invMFCCs(SOURCE_DIR + source_fname, nargout=0)  # Need nargout=0 if there are no values returned 
+
+	 	exit()
+
 		source_padded_frames, source_mask = pad_sequence(source_mfcc_features, config.max_num_frames)
 		target_padded_frames, target_mask = pad_sequence(target_mfcc_features, config.max_num_frames)
 
