@@ -1,7 +1,7 @@
-import time
-from time import gmtime, strftime
+from time import time, gmtime, strftime
 import numpy as np
 import os
+import random
 
 import scipy.io.wavfile as wav
 from python_speech_features import mfcc
@@ -21,7 +21,7 @@ class Config(object):
 		"""
 		batch_size = 32 
 		n_epochs = 50
-		lr = 1e-4
+		lr = 1e-5
 		max_num_frames = 582 
 		n_mfcc_features = 13		
 		state_size = 200
@@ -246,9 +246,9 @@ class RNNModel(object):
 
 				losses = []
 				for epoch in range(self.config.n_epochs):
-						start_time = time.time()
+						start_time = time()
 						average_loss, step_i = self.run_epoch(sess, inputs, labels, input_masks, label_masks, train_writer, step_i)
-						duration = time.time() - start_time
+						duration = time() - start_time
 						print 'Epoch {:}: loss = {:.2f} ({:.3f} sec)'.format(epoch, average_loss, duration)
 						losses.append(average_loss)
 				return losses
@@ -308,8 +308,17 @@ def preprocess_data(config):
 		input_masks.append(source_mask)
 		label_masks.append(target_mask)	
 
-	print "Train data len: ", len(inputs)
-	print "Train labels len: ", len(labels)	
+	print "Inputs len: ", len(inputs)
+	print "Labels len: ", len(labels)	
+	print "Input masks len: ", len(input_masks)
+	print "Label masks len: ", len(label_masks)
+
+	randomized_indices = range(0, len(inputs)) 
+	random.shuffle(randomized_indices)
+	inputs = [inputs[i] for i in randomized_indices]
+	labels = [labels[i] for i in randomized_indices]
+	input_masks = [input_masks[i] for i in randomized_indices]
+	label_masks = [label_masks[i] for i in randomized_indices] 
 
 	return inputs, labels, input_masks, label_masks 
 
