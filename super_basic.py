@@ -2,7 +2,7 @@ import os
 import numpy as np
 import scipy.io.wavfile as wav
 from python_speech_features import mfcc
-#from sklearn.naive_bayes import MultinomialNB
+from sklearn.naive_bayes import MultinomialNB
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, accuracy_score
 
