@@ -21,7 +21,7 @@ for source_fname, target_fname in zip(os.listdir(SOURCE_DIR), os.listdir(TARGET_
 	eng.addpath('matlab_2')
 	#print "Inverting MFCCs for wav file ", source_fname
 	#res = mlab.run('matlab_2/invmelff', {'cep': source_mfcc_features.tolist(), 'sr': source_sample_rate})
-	inverted = eng.invmelfcc(source_mfcc_features.tolist(), source_sample_rate)
+	inverted = eng.invmelfcc(matlab.double(source_mfcc_features.tolist()), source_sample_rate)
 	eng.soundsc(res['result'], source_sample_rate)
  	#eng.addpath('../invMFCCs')
 	#print "Running invMFCCs on wav file: ", source_fname
