@@ -301,14 +301,11 @@ def preprocess_data(config):
 		source_mfcc_features = mfcc(source_wav_data, source_sample_rate)	 # Returns a numpy array of num_frames x num_cepstrals
 		target_mfcc_features = mfcc(target_wav_data, target_sample_rate) 
 	
-		#wav.write('test_src.wav', source_sample_rate, source_wav_data)
-		#mfcc2wav(source_wav_data, source_mfcc_features, samplerate=source_sample_rate)		
-
 		print "Starting matlab ... type in your password if prompted"
 		eng = matlab.engine.start_matlab()
 		eng.addpath('../invMFCCs')
 		print "Running invMFCCs on wav file: ", source_fname
-		eng.invMFCCs(SOURCE_DIR + source_fname, nargout=0)  # Need nargout=0 if there are no values returned 
+		eng.invMFCCs(SOURCE_DIR + source_fname, matlab.double(source_mfcc_features.tolist()), nargout=0)  # Need nargout=0 if there are no values returned 
 
 	 	exit()
 
