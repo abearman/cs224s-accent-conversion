@@ -83,21 +83,21 @@ def classify():
 				data.append(datapoint)
 				labels.append(3) # 3 = indian
 
-	nb_model = GaussianNB()
+	"""nb_model = GaussianNB()
 	nb_model.fit(data, labels)
 	print 'Naive Bayes model fit'
 	pred = nb_model.predict(test_data)
 	print(classification_report(pred, test_labels))
+	print(accuracy_score(pred, test_labels))"""
+
+	print 'SVM model fit'
+	svm_model = SVC()
+	svm_model.fit(data, labels)
+	pred = svm_model.predict(test_data)
+	print(classification_report(pred, test_labels))
 	print(accuracy_score(pred, test_labels))
 
-	#print 'SVM model fit'
-	#svm_model = SVC()
-	#svm_model.fit(data, labels)
-	#pred = svm_model.predict(test_data)
-	#print(classification_report(pred, test_labels))
-	#print(accuracy_score(pred, test_labels))
-
-	print "Logistic regression model fit"
+	"""print "Logistic regression model fit"
 	model = LogisticRegression()
 	model.fit(data, labels)
 	pred = model.predict(test_data)
@@ -106,6 +106,6 @@ def classify():
 
 	for i, class_label in enumerate([0, 1, 2, 3]):
 		top10 = np.argsort(model.coef_[i])[-10:]
-		print("%s: %s" % (class_label, " ".join(str(j) for j in top10)))
+		print("%s: %s" % (class_label, " ".join(str(j) for j in top10)))"""
 
 classify()
