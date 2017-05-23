@@ -15,14 +15,14 @@ for source_fname, target_fname in zip(os.listdir(SOURCE_DIR), os.listdir(TARGET_
 
 	print "Starting matlab ... type in your password if prompted"
 	eng = matlab.engine.start_matlab()
-	eng.addpath('matlab_2')
+	eng.addpath('invMFCCs_new')
 	print "Finished starting matlab"
 
 	# MFCC features are a numpy array of shape (num_coefficients x num_frames)
 	source_mfcc_features = np.array(eng.melfcc(matlab.double(source_wav_data.tolist()), float(source_sample_rate)))	
 
 	# The reconstructed waveform
-	inverted_wav_data = eng.invmelfcc(matlab.double(source_mfcc_features.tolist())) 
+	inverted_wav_data = eng.invmelfcc(matlab.double(source_mfcc_features.tolist()), float(source_sample_rate)) 
 	eng.soundsc(inverted_wav_data, float(source_sample_rate), nargout=0)
 	inverted_wav_data = np.squeeze(np.array(inverted_wav_data))
 
