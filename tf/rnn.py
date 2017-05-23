@@ -307,14 +307,10 @@ def preprocess_data(config):
 	for source_fname, target_fname in zip(os.listdir(SOURCE_DIR), os.listdir(TARGET_DIR)):
 		(source_sample_rate, source_wav_data) = wav.read(SOURCE_DIR + source_fname) 
 		(target_sample_rate, target_wav_data) = wav.read(TARGET_DIR + target_fname)
-		source_mfcc_features = mfcc(source_wav_data, source_sample_rate)	 # Returns a numpy array of num_frames x num_cepstrals
-		target_mfcc_features = mfcc(target_wav_data, target_sample_rate) 
-	
-		print "Starting matlab ... type in your password if prompted"
-		eng = matlab.engine.start_matlab()
-		eng.addpath('../invMFCCs')
-		print "Running invMFCCs on wav file: ", source_fname
-		eng.invMFCCs(SOURCE_DIR + source_fname, matlab.double(source_mfcc_features.tolist()), nargout=0)  # Need nargout=0 if there are no values returned 
+
+  	# MFCC features are a numpy array of shape (num_coefficients x num_frames)
+	  source_mfcc_features = np.array(eng.melfcc(matlab.double(source_wav_data.tolist()), float(source_sample_rate)))
+		target_mfcc_features = np.array(eng.melfcc(matlab.double(target_wav_data.tolist()), float(target_sample_rate)))
 
 		source_padded_frames, source_mask = pad_sequence(source_mfcc_features, config.max_num_frames)
 		target_padded_frames, target_mask = pad_sequence(target_mfcc_features, config.max_num_frames)
