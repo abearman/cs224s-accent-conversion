@@ -1,4 +1,4 @@
-function [x,aspc,spec] = invmelfcc(cep, sr, varargin)
+function [x, aspc, spec] = invmelfcc(cep, varargin)
 % [x,aspc,spec] = invmelfcc(cep, sr[, opts ...])
 %    Attempt to invert plp cepstra back to a full spectrum
 %    and even a waveform.  Takes all the same options as melfcc.
@@ -16,6 +16,8 @@ function [x,aspc,spec] = invmelfcc(cep, sr, varargin)
 	  'fbtype', 'mel', 'usecmp', 0, 'modelorder', 0, 'broaden', ...
                     0, 'excitation', []);
 
+sr = 16000;
+%sr = 44100;
 winpts = round(wintime*sr);
 nfft = 2^(ceil(log(double(winpts))/log(2)));
 

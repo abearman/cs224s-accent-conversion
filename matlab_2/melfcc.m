@@ -1,4 +1,4 @@
-function [cepstra,aspectrum,pspectrum] = melfcc(samples, sr, varargin)
+function [cepstra] = melfcc(samples, sr, varargin)
 %[cepstra,aspectrum,pspectrum] = melfcc(samples, sr[, opts ...])
 %  Calculate Mel-frequency cepstral coefficients by:
 %   - take the absolute value of the STFT
@@ -48,7 +48,8 @@ function [cepstra,aspectrum,pspectrum] = melfcc(samples, sr, varargin)
 % Uses Mark Paskin's process_options.m from KPMtools
 % $Header: /Users/dpwe/matlab/rastamat/RCS/melfcc.m,v 1.3 2012/09/03 14:01:26 dpwe Exp dpwe $
 
-if nargin < 2;   sr = 16000;    end
+%if nargin < 2;   sr = 16000;    end
+%sr = 44100;
 
 % Parse out the optional arguments
 [wintime, hoptime, numcep, lifterexp, sumpower, preemph, dither, ...

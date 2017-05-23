@@ -13,6 +13,7 @@ from tensorflow.python.ops.nn import dynamic_rnn
 from utils.general_utils import get_minibatches
 from mfcc2wav import mfcc2wav 
 
+
 class Config(object):
 		"""Holds model hyperparams and data information.
 
@@ -125,7 +126,8 @@ class RNNModel(object):
 				mfcc_preds = tf.reshape(mfcc_preds, [-1, self.config.max_num_frames, self.config.n_mfcc_features])
 				mfcc_preds += b
 				print "mfcc_preds: ", mfcc_preds
-
+				
+			 	self.mfcc = mfcc_preds
 				return mfcc_preds 
 
 
@@ -156,7 +158,7 @@ class RNNModel(object):
 				squared_masked_subtracted_arr = tf.square(masked_subtracted_arr)
 
 				# Shape: ()
-				loss = tf.sqrt( tf.reduce_sum(squared_masked_subtracted_arr) ) 
+				loss = tf.sqrt(tf.reduce_sum(squared_masked_subtracted_arr) ) 
 
 				print "loss: ", loss 
 				return loss 
@@ -252,6 +254,13 @@ class RNNModel(object):
 						duration = time() - start_time
 						print 'Epoch {:}: loss = {:.2f} ({:.3f} sec)'.format(epoch, average_loss, duration)
 						losses.append(average_loss)
+						print "Starting matlab ... type in your password if prompted"
+						eng = matlab.engine.start_matlab()
+						eng.addpath('../matlab_2')
+						inverted = eng.invmelfcc(matlab.double(np.array(self.mfcc.eval(session=sess)).tolist()))
+						wav.write('learned_wav.wav', 16000, inverted)
+						exit()
+
 				return losses
 
 
@@ -306,8 +315,6 @@ def preprocess_data(config):
 		eng.addpath('../invMFCCs')
 		print "Running invMFCCs on wav file: ", source_fname
 		eng.invMFCCs(SOURCE_DIR + source_fname, matlab.double(source_mfcc_features.tolist()), nargout=0)  # Need nargout=0 if there are no values returned 
-
-	 	exit()
 
 		source_padded_frames, source_mask = pad_sequence(source_mfcc_features, config.max_num_frames)
 		target_padded_frames, target_mask = pad_sequence(target_mfcc_features, config.max_num_frames)
