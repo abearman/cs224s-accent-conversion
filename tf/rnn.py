@@ -199,7 +199,7 @@ class RNNModel(object):
 				feed = self.create_feed_dict(inputs_batch, input_masks_batch, 
 																		 labels_batch=labels_batch, label_masks_batch=label_masks_batch)
 				_, loss, summary = sess.run([self.train_op, self.loss, self.merged_summary_op], feed_dict=feed)
-				return loss, summary
+				return loss, summary, feed
 
 
 		def run_epoch(self, sess, inputs, labels, input_masks, label_masks, train_writer, step_i):
@@ -221,14 +221,14 @@ class RNNModel(object):
 				for input_batch, labels_batch, input_masks_batch, label_masks_batch in \
 										get_minibatches([inputs, labels, input_masks, label_masks], self.config.batch_size):
 						n_minibatches += 1
-						batch_loss, summary = self.train_on_batch(sess, input_batch, input_masks_batch, labels_batch, label_masks_batch)
+						batch_loss, summary, feed = self.train_on_batch(sess, input_batch, input_masks_batch, labels_batch, label_masks_batch)
 						total_loss += batch_loss
 
 						train_writer.add_summary(summary, step_i)
 						print "step_i: ", step_i
 						step_i += 1
 
-				return total_loss / n_minibatches, step_i
+				return total_loss / n_minibatches, step_i, feed
 
 
 		def optimize(self, sess, inputs, labels, input_masks, label_masks):
@@ -249,14 +249,25 @@ class RNNModel(object):
 				losses = []
 				for epoch in range(self.config.n_epochs):
 						start_time = time()
-						average_loss, step_i = self.run_epoch(sess, inputs, labels, input_masks, label_masks, train_writer, step_i)
+						average_loss, step_i, feed = self.run_epoch(sess, inputs, labels, input_masks, label_masks, train_writer, step_i)
 						duration = time() - start_time
 						print 'Epoch {:}: loss = {:.2f} ({:.3f} sec)'.format(epoch, average_loss, duration)
 						losses.append(average_loss)
 
-						inverted = self.eng.invmelfcc(matlab.double(np.array(self.mfcc.eval(session=sess)).tolist()))
-						wav.write('learned_wav.wav', 16000.0, inverted)
-						exit()
+						predicted_mfccs_batch = self.mfcc.eval(session=sess, feed_dict=feed)
+						for i in range(predicted_mfccs_batch.shape[0]):
+							predicted_mfccs = predicted_mfccs_batch[i,:,:]
+							inverted_wav_data = self.eng.invmelfcc(matlab.double(predicted_mfccs.tolist()), 16000.0)
+
+							self.eng.soundsc(inverted_wav_data, 16000.0, nargout=0)
+							inverted_wav_data = np.squeeze(np.array(inverted_wav_data))
+
+							# Scales the waveform to be between -1 and 1
+							maxVec = np.max(inverted_wav_data)
+							minVec = np.min(inverted_wav_data)
+							inverted_wav_data = ((inverted_wav_data - minVec) / (maxVec - minVec) - 0.5) * 2
+	 
+							wav.write('learned_wav' + str(i) + '.wav', 16000.0, inverted_wav_data)
 
 				return losses
 
@@ -284,7 +295,7 @@ class RNNModel(object):
 
 		def build(self):
 				self.eng = self.setup_matlab_engine()
-				self.mfcc = None  # Add a handle to this so we can set it later
+				self.mfcc = None	# Add a handle to this so we can set it later
 				self.add_placeholders()
 				self.pred = self.add_prediction_op()
 				self.loss = self.add_loss_op(self.pred)
@@ -309,10 +320,7 @@ class RNNModel(object):
 				# American English male bdl
 				SOURCE_DIR = '../data/cmu_arctic/us-english-male-bdl/wav/'
 				TARGET_DIR = '../data/cmu_arctic/scottish-english-male-awb/wav/'
-				counter = 1
 				for source_fname, target_fname in zip(os.listdir(SOURCE_DIR), os.listdir(TARGET_DIR)):
-					print counter
-					counter += 1
 					(source_sample_rate, source_wav_data) = wav.read(SOURCE_DIR + source_fname) 
 					(target_sample_rate, target_wav_data) = wav.read(TARGET_DIR + target_fname)
 
@@ -321,8 +329,6 @@ class RNNModel(object):
 					#target_mfcc_features = np.transpose(np.array(self.eng.melfcc(matlab.double(target_wav_data.tolist()), float(target_sample_rate))))
 					source_mfcc_features = np.array(mfcc(source_wav_data, source_sample_rate))
 					target_mfcc_features = np.array(mfcc(target_wav_data, target_sample_rate))
-					print "source mfcc features shape: ", source_mfcc_features.shape
-					print "target mfcc features shape: ", target_mfcc_features.shape
 
 					source_padded_frames, source_mask = self.pad_sequence(source_mfcc_features, config.max_num_frames)
 					target_padded_frames, target_mask = self.pad_sequence(target_mfcc_features, config.max_num_frames)
