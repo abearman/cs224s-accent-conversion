@@ -11,7 +11,6 @@ import tensorflow as tf
 from tensorflow.python.ops.nn import dynamic_rnn
 
 from utils.general_utils import get_minibatches
-from mfcc2wav import mfcc2wav 
 
 
 class Config(object):
@@ -127,7 +126,7 @@ class RNNModel(object):
 				mfcc_preds += b
 				print "mfcc_preds: ", mfcc_preds
 				
-			 	self.mfcc = mfcc_preds
+				self.mfcc = mfcc_preds
 				return mfcc_preds 
 
 
@@ -254,14 +253,19 @@ class RNNModel(object):
 						duration = time() - start_time
 						print 'Epoch {:}: loss = {:.2f} ({:.3f} sec)'.format(epoch, average_loss, duration)
 						losses.append(average_loss)
-						print "Starting matlab ... type in your password if prompted"
-						eng = matlab.engine.start_matlab()
-						eng.addpath('../matlab_2')
-						inverted = eng.invmelfcc(matlab.double(np.array(self.mfcc.eval(session=sess)).tolist()))
-						wav.write('learned_wav.wav', 16000, inverted)
+
+						inverted = self.eng.invmelfcc(matlab.double(np.array(self.mfcc.eval(session=sess)).tolist()))
+						wav.write('learned_wav.wav', 16000.0, inverted)
 						exit()
 
 				return losses
+
+		
+		def setup_matlab_engine(self):
+				print "Starting matlab ... type in your password if prompted"
+				eng = matlab.engine.start_matlab()
+				eng.addpath('../invMFCCs_new')
+				return eng				
 
 
 		def add_summary_op(self):
@@ -279,113 +283,122 @@ class RNNModel(object):
 
 
 		def build(self):
+				self.eng = self.setup_matlab_engine()
+				self.mfcc = None  # Add a handle to this so we can set it later
 				self.add_placeholders()
 				self.pred = self.add_prediction_op()
 				self.loss = self.add_loss_op(self.pred)
 				tf.summary.scalar("loss", self.loss)
 				self.train_op = self.add_training_op(self.loss)
 				self.merged_summary_op = self.add_summary_op()
-				print "self.merged_summary_op: ", self.merged_summary_op
 
 
-def preprocess_data(config):
-	"""Processes the training data and returns MFCC vectors for all of them.
-	Args:
-		config: the Config object with various parameters specified
-	Returns:
-		train_data:	A list of tuples, one for each training example: (accent 1 padded MFCC frames, accent 1 mask)
-		train_labels: A list of tuples, one for each training example: (accent 2 padded MFCC frames, accent 2 mask)
-	"""
-	inputs = [] 
-	labels = []	
-	input_masks = []
-	label_masks = []
-	
-	# American English male bdl
-	SOURCE_DIR = '../data/cmu_arctic/us-english-male-bdl/wav/'
-	TARGET_DIR = '../data/cmu_arctic/scottish-english-male-awb/wav/'
-	for source_fname, target_fname in zip(os.listdir(SOURCE_DIR), os.listdir(TARGET_DIR)):
-		(source_sample_rate, source_wav_data) = wav.read(SOURCE_DIR + source_fname) 
-		(target_sample_rate, target_wav_data) = wav.read(TARGET_DIR + target_fname)
+		def preprocess_data(self, config):
+				"""Processes the training data and returns MFCC vectors for all of them.
+				Args:
+					config: the Config object with various parameters specified
+				Returns:
+					train_data:	A list of tuples, one for each training example: (accent 1 padded MFCC frames, accent 1 mask)
+					train_labels: A list of tuples, one for each training example: (accent 2 padded MFCC frames, accent 2 mask)
+				"""
+				inputs = [] 
+				labels = []	
+				input_masks = []
+				label_masks = []
+				
+				# American English male bdl
+				SOURCE_DIR = '../data/cmu_arctic/us-english-male-bdl/wav/'
+				TARGET_DIR = '../data/cmu_arctic/scottish-english-male-awb/wav/'
+				counter = 1
+				for source_fname, target_fname in zip(os.listdir(SOURCE_DIR), os.listdir(TARGET_DIR)):
+					print counter
+					counter += 1
+					(source_sample_rate, source_wav_data) = wav.read(SOURCE_DIR + source_fname) 
+					(target_sample_rate, target_wav_data) = wav.read(TARGET_DIR + target_fname)
 
-  	# MFCC features are a numpy array of shape (num_coefficients x num_frames)
-	  source_mfcc_features = np.array(eng.melfcc(matlab.double(source_wav_data.tolist()), float(source_sample_rate)))
-		target_mfcc_features = np.array(eng.melfcc(matlab.double(target_wav_data.tolist()), float(target_sample_rate)))
+					# MFCC features should be a numpy array of shape (num_frames x num_coefficients)
+					#source_mfcc_features = np.transpose(np.array(self.eng.melfcc(matlab.double(source_wav_data.tolist()), float(source_sample_rate))))
+					#target_mfcc_features = np.transpose(np.array(self.eng.melfcc(matlab.double(target_wav_data.tolist()), float(target_sample_rate))))
+					source_mfcc_features = np.array(mfcc(source_wav_data, source_sample_rate))
+					target_mfcc_features = np.array(mfcc(target_wav_data, target_sample_rate))
+					print "source mfcc features shape: ", source_mfcc_features.shape
+					print "target mfcc features shape: ", target_mfcc_features.shape
 
-		source_padded_frames, source_mask = pad_sequence(source_mfcc_features, config.max_num_frames)
-		target_padded_frames, target_mask = pad_sequence(target_mfcc_features, config.max_num_frames)
+					source_padded_frames, source_mask = self.pad_sequence(source_mfcc_features, config.max_num_frames)
+					target_padded_frames, target_mask = self.pad_sequence(target_mfcc_features, config.max_num_frames)
 
-		inputs.append(source_padded_frames) 
-		labels.append(target_padded_frames) 
-		input_masks.append(source_mask)
-		label_masks.append(target_mask)	
+					inputs.append(source_padded_frames) 
+					labels.append(target_padded_frames) 
+					input_masks.append(source_mask)
+					label_masks.append(target_mask)	
 
-	print "Inputs len: ", len(inputs)
-	print "Labels len: ", len(labels)	
-	print "Input masks len: ", len(input_masks)
-	print "Label masks len: ", len(label_masks)
+				print "Inputs len: ", len(inputs)
+				print "Labels len: ", len(labels)	
+				print "Input masks len: ", len(input_masks)
+				print "Label masks len: ", len(label_masks)
 
-	randomized_indices = range(0, len(inputs)) 
-	random.shuffle(randomized_indices)
-	inputs = [inputs[i] for i in randomized_indices]
-	labels = [labels[i] for i in randomized_indices]
-	input_masks = [input_masks[i] for i in randomized_indices]
-	label_masks = [label_masks[i] for i in randomized_indices] 
+				randomized_indices = range(0, len(inputs)) 
+				random.shuffle(randomized_indices)
+				inputs = [inputs[i] for i in randomized_indices]
+				labels = [labels[i] for i in randomized_indices]
+				input_masks = [input_masks[i] for i in randomized_indices]
+				label_masks = [label_masks[i] for i in randomized_indices] 
 
-	return inputs, labels, input_masks, label_masks 
+				return inputs, labels, input_masks, label_masks 
 
 
-def pad_sequence(mfcc_features, max_num_frames):
-	"""
-	Args:
-		mfcc_features: A numpy array of shape (num_frames, n_mfcc_features)
-		max_length: Tee maximum length to which the array should be truncated or zero-padded 
-	"""
-	num_frames = mfcc_features.shape[0]
-	num_features = mfcc_features.shape[1]
+		def pad_sequence(self, mfcc_features, max_num_frames):
+				"""
+				Args:
+					mfcc_features: A numpy array of shape (num_frames, n_mfcc_features)
+					max_length: Tee maximum length to which the array should be truncated or zero-padded 
+				"""
+				num_frames = mfcc_features.shape[0]
+				num_features = mfcc_features.shape[1]
 
-	padded_mfcc_features = np.zeros((max_num_frames, num_features)) 
-	mask = np.zeros((max_num_frames, num_features), dtype=bool)
+				padded_mfcc_features = np.zeros((max_num_frames, num_features)) 
+				mask = np.zeros((max_num_frames, num_features), dtype=bool)
 
-	# Truncate (or fill exactly
-	if num_frames >= max_num_frames:	
-		padded_mfcc_eatures = mfcc_features[0:max_num_frames,:]
-		mask = np.ones((max_num_frames, num_features), dtype=bool)  # All True's 
+				# Truncate (or fill exactly
+				if num_frames >= max_num_frames:	
+					padded_mfcc_eatures = mfcc_features[0:max_num_frames,:]
+					mask = np.ones((max_num_frames, num_features), dtype=bool)	# All True's 
 
-	# Append 0 MFCC vectors
-	elif num_frames < max_num_frames:		
-		delta = max_num_frames - num_frames 
-		zeros = np.zeros((delta, num_features)) 
-		padded_mfcc_features = np.concatenate((mfcc_features, zeros), axis=0)
+				# Append 0 MFCC vectors
+				elif num_frames < max_num_frames:		
+					delta = max_num_frames - num_frames 
+					zeros = np.zeros((delta, num_features)) 
+					padded_mfcc_features = np.concatenate((mfcc_features, zeros), axis=0)
 
-		trues = np.ones((num_frames, num_features), dtype=bool)
-		falses = np.zeros((delta, num_features), dtype=bool) 
-		mask = np.concatenate((trues, falses), axis=0)
+					trues = np.ones((num_frames, num_features), dtype=bool)
+					falses = np.zeros((delta, num_features), dtype=bool) 
+					mask = np.concatenate((trues, falses), axis=0)
 
-	return (padded_mfcc_features, mask)
+				return (padded_mfcc_features, mask)
+
 
 
 def main():
-		"""Main entry method for this file."""
-		config = Config()
+	"""Main entry method for this file."""
+	config = Config()
 
-		print "Preprocessing data ..."
-		inputs, labels, input_masks, label_masks = preprocess_data(config)
-		print "Finished preprocessing data"
+	# Tell TensorFlow that the model will be built into the default Graph.
+	# (not required but good practice)
+	with tf.Graph().as_default():
+			# Build the model and add the variable initializer Op
+			model = RNNModel(config)
+			init = tf.global_variables_initializer()
 
-		# Tell TensorFlow that the model will be built into the default Graph.
-		# (not required but good practice)
-		with tf.Graph().as_default():
-				# Build the model and add the variable initializer Op
-				model = RNNModel(config)
-				init = tf.global_variables_initializer()
+			print "Preprocessing data ..."
+			inputs, labels, input_masks, label_masks = model.preprocess_data(config)
+			print "Finished preprocessing data"
 
-				# Create a session for running Ops in the Graph
-				with tf.Session() as sess:
-						# Run the Op to initialize the variables.
-						sess.run(init)
-						# Fit the model
-						losses = model.optimize(sess, inputs, labels, input_masks, label_masks)
+			# Create a session for running Ops in the Graph
+			with tf.Session() as sess:
+					# Run the Op to initialize the variables.
+					sess.run(init)
+					# Fit the model
+					losses = model.optimize(sess, inputs, labels, input_masks, label_masks)
 
 
 if __name__ == "__main__":

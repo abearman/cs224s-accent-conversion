@@ -5,6 +5,7 @@ from python_speech_features import mfcc
 import matlab.engine
 import numpy as np
 from sklearn.preprocessing import normalize
+import librosa
 
 
 SOURCE_DIR = 'data/cmu_arctic/us-english-male-bdl/wav/'
@@ -18,8 +19,12 @@ for source_fname, target_fname in zip(os.listdir(SOURCE_DIR), os.listdir(TARGET_
 	eng.addpath('invMFCCs_new')
 	print "Finished starting matlab"
 
-	# MFCC features are a numpy array of shape (num_coefficients x num_frames)
-	source_mfcc_features = np.array(eng.melfcc(matlab.double(source_wav_data.tolist()), float(source_sample_rate)))	
+	# MFCC features need to be a numpy array of shape (num_coefficients x num_frames) in order to be passed to the invmelfcc function
+	source_mfcc_features1 = np.array(eng.melfcc(matlab.double(source_wav_data.tolist()), float(source_sample_rate)))	
+	source_mfcc_features = np.transpose(np.array(mfcc(source_wav_data, source_sample_rate)))
+	print "src mfcc features shape: ", source_mfcc_features.shape
+	print "src features matlab: ", source_mfcc_features1
+	print "src features python: ", source_mfcc_features
 
 	# The reconstructed waveform
 	inverted_wav_data = eng.invmelfcc(matlab.double(source_mfcc_features.tolist()), float(source_sample_rate)) 
