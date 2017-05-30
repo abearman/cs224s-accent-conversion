@@ -13,6 +13,7 @@ from tensorflow.python.ops.nn import dynamic_rnn
 from utils.general_utils import get_minibatches, batch_multiply_by_matrix
 from utils.fast_dtw import get_dtw_series 
 from utils.corrupt_data import corrupt_input
+from utils.pad_sequence import pad_sequence
 
 
 class Config(object):
@@ -365,37 +366,6 @@ class ANNModel(object):
 				label_masks = [label_masks[i] for i in randomized_indices] 
 
 				return inputs, inputs_corrupted, input_masks, labels, label_masks
-
-
-		def pad_sequence(self, mfcc_features, max_num_frames):
-				"""
-				Args:
-					mfcc_features: A numpy array of shape (num_frames, n_mfcc_features)
-					max_num_frames: The maximum length to which the array should be truncated or zero-padded 
-				"""
-				num_frames = mfcc_features.shape[0]
-				num_features = mfcc_features.shape[1]
-
-				padded_mfcc_features = np.zeros( (max_num_frames, num_features) )
-        mask = np.zeros( (max_num_frames, num_features), dtype=bool)
-			
-				# Truncate (or fill exactly
-        if num_frames >= max_num_frames:
-          padded_mfcc_features = mfcc_features[0:max_num_frames,:] 
-          mask = np.ones((max_num_frames, num_features), dtype=bool)  # All True's 
-
-				# Append 0 MFCC vectors
-        elif num_frames < max_num_frames:
-          delta = max_num_frames - num_frames
-          zeros = np.zeros((delta, num_features))
-          padded_mfcc_features = np.concatenate((mfcc_features, zeros), axis=0)
-
-          trues = np.ones((num_frames, num_features), dtype=bool)
-          falses = np.zeros((delta, num_features), dtype=bool)
-          mask = np.concatenate((trues, falses), axis=0)
-
-        return (padded_mfcc_features, mask)
-
 
 
 def main():
