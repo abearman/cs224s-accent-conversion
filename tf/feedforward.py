@@ -31,7 +31,7 @@ class Config(object):
 		logs_path = "tensorboard/" + strftime("%Y_%m_%d_%H_%M_%S", gmtime())
 
 
-class RNNModel(object):
+class ANNModel(object):
 		"""Implements an LSTM machine translation-esque baseline model with a regression loss."""
 
 		def add_placeholders(self):
@@ -104,20 +104,27 @@ class RNNModel(object):
 						pred: A tensor of shape (batch_size, n_classes)
 				"""
 
-				#inputs = tf.boolean_mask(self.input_placeholder, self.input_masks_placeholder)
-
 				xavier = tf.contrib.layers.xavier_initializer()
 				W1 = tf.get_variable("W1", shape=(self.config.num_features, self.config.state_size), initializer=xavier) 
 				b1 = tf.get_variable("b1", shape=(1, self.config.state_size))
-
 				W2 = tf.get_variable("W2", shape=(self.config.state_size, self.config.num_features), initializer=xavier) 
 				b2 = tf.get_variable("b2", shape=(1, self.config.num_features))
+				W3 = tf.get_variable("W3", shape=(self.config.num_features, self.config.state_size), initializer=xavier) 
+				b3 = tf.get_variable("b3", shape=(1, self.config.state_size))
+				W4 = tf.get_variable("W4", shape=(self.config.state_size, self.config.num_features), initializer=xavier) 
+				b4 = tf.get_variable("b4", shape=(1, self.config.num_features))
 
-				layer1 = tf.nn.relu(tf.matmul(self.input_placeholder, W1) + b1)
-				mfcc_preds = tf.nn.relu(tf.matmul(layer1, W2) + b2)
-				#layer3 = tf.nn.relu(tf.matmul(layer2, W3) + b3)
-				#layer4 = tf.nn.relu(tf.matmul(layer3, W4) + b4)
-				
+				# [batch, num_features] x [num_features, state_size] = [batch, state_size]
+				mfcc_preds = tf.matmul(self.input_placeholder, W1) + b1
+				# [batch, state_size] x [state_size, num_features] = [batch, num_features]
+				mfcc_preds = tf.matmul(mfcc_preds, W2) + b2
+				# [batch, num_features] x [num_features, state_size] = [batch, state_size]
+				mfcc_preds = tf.matmul(mfcc_preds, W3) + b3
+				# [batch, state_size] x [state_size, num_features] = [batch, num_features]
+				mfcc_preds = tf.matmul(mfcc_preds, W4) + b4
+
+				#masked_preds = tf.boolean_mask(mfcc_preds, self.input_masks_placeholder)
+	
 				self.mfcc = mfcc_preds
 				return mfcc_preds 
 
@@ -130,9 +137,7 @@ class RNNModel(object):
 				Returns:
 						loss: A 0-d tensor (scalar)
 				"""
-				loss_vector = tf.nn.softmax_cross_entropy_with_logits(logits=pred, labels=self.labels_placeholder)
-				#masked = tf.boolean_mask(loss_vector, self.label_masks_placeholder)
-				loss = tf.reduce_mean(loss_vector)
+				loss = tf.reduce_mean(tf.squared_difference(pred, self.labels_placeholder))
 				return loss 
 
 
@@ -193,11 +198,11 @@ class RNNModel(object):
 				for input_batch, labels_batch, input_masks_batch, label_masks_batch in \
 										get_minibatches([inputs, labels, input_masks, label_masks], self.config.batch_size):
 						n_minibatches += 1
+
 						batch_loss, summary, feed = self.train_on_batch(sess, input_batch, input_masks_batch, labels_batch, label_masks_batch)
 						total_loss += batch_loss
 
 						train_writer.add_summary(summary, step_i)
-						#print "step_i: ", step_i
 						step_i += 1
 
 				return total_loss / n_minibatches, step_i, feed
@@ -247,7 +252,6 @@ class RNNModel(object):
 							inverted_wav_data = ((inverted_wav_data - minVec) / (maxVec - minVec) - 0.5) * 2
 	 
 							wav.write('learned_wav' + str(i) + '.wav', 16000.0, inverted_wav_data)
-							#print predicted_mfccs
 
 				return losses
 
@@ -318,10 +322,6 @@ class RNNModel(object):
 					input_masks.append(source_mask)
 					label_masks.append(target_mask)	
 
-				#print "Inputs len: ", len(inputs)
-				#print "Labels len: ", len(labels)	
-				#print "Input masks len: ", len(input_masks)
-				#print "Label masks len: ", len(label_masks)
 
 				randomized_indices = range(0, len(inputs)) 
 				random.shuffle(randomized_indices)
@@ -347,26 +347,31 @@ class RNNModel(object):
 
 				for i in range(0, num_frames): # TODO: there's gotta be a better way to do this
 						for j in range(0, num_features):
-							collapsed.append(mfcc_features[i][j])
-
+							if len(collapsed) < 7566:
+								collapsed.append(mfcc_features[i][j])
+				collapsed = np.array(collapsed)
+				
 				# Truncate (or fill exactly)
 				if num_frames >= max_num_frames:
-					
-					padded_mfcc_features = np.array(collapsed)
+					padded_mfcc_features = collapsed
 					mask = np.ones((max_num_frames * num_features), dtype=bool)	# All True's 
 
 				# Append 0 MFCC vectors
 				elif num_frames < max_num_frames:		
 					delta = max_num_frames - num_frames 
-					zeros = [0] * (delta * num_features)
-					padded_mfcc_features = np.array(collapsed + zeros)
-
+					zeros = np.zeros((delta * num_features))
+					
+					padded_mfcc_features = np.concatenate((collapsed, zeros), axis=0)
 					trues = np.ones((num_frames * num_features), dtype=bool)
 					falses = np.zeros((delta * num_features), dtype=bool) 
 					mask = np.concatenate((trues, falses), axis=0)
 
-				print padded_mfcc_features
-				print mask
+				if padded_mfcc_features.shape[0] != 7566:
+					print 'features'
+					print padded_mfcc_features.shape
+				if mask.shape[0] != 7566:
+					print 'mask'
+					print mask.shape
 				return (padded_mfcc_features, mask)
 
 
@@ -381,7 +386,7 @@ def main():
 
 	with tf.Graph().as_default():
 			# Build the model and add the variable initializer Op
-			model = RNNModel(config)
+			model = ANNModel(config)
 			init = tf.global_variables_initializer()
 
 			print "Preprocessing data ..."
@@ -390,7 +395,7 @@ def main():
 
 			# Create a session for running Ops in the Graph
 			with tf.Session() as sess:
-					# Run the Op to initialize the variables
+					# Run the Op to initialize the variables 
 					sess.run(init)
 					# Fit the model
 					losses = model.optimize(sess, inputs, labels, input_masks, label_masks)

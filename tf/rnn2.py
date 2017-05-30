@@ -223,11 +223,11 @@ class RNNModel(object):
 				for input_batch, labels_batch, input_masks_batch, label_masks_batch in \
 										get_minibatches([inputs, labels, input_masks, label_masks], self.config.batch_size):
 						n_minibatches += 1
+
 						batch_loss, summary, feed = self.train_on_batch(sess, input_batch, input_masks_batch, labels_batch, label_masks_batch)
 						total_loss += batch_loss
 
 						train_writer.add_summary(summary, step_i)
-						#print "step_i: ", step_i
 						step_i += 1
 
 				return total_loss / n_minibatches, step_i, feed
