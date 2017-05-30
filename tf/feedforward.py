@@ -263,14 +263,8 @@ class ANNModel(object):
 						predicted_mfccs_batch = self.mfcc.eval(session=sess, feed_dict=feed)
 						for i in range(predicted_mfccs_batch.shape[0]):
 							predicted_mfccs = predicted_mfccs_batch[i,:]
-							mfccs = np.zeros((self.config.max_num_frames, self.config.num_mfcc))
-							
-							ind = 0
-							while ind < self.config.num_features:
-								mfccs[ind:] = predicted_mfccs[ind:ind+self.config.num_mfcc_coeffs]
-								ind += self.config.num_mfcc_coeffs
 
-							inverted_wav_data = self.eng.invmelfcc(matlab.double(mfccs.tolist()), 
+							inverted_wav_data = self.eng.invmelfcc(matlab.double(predicted_mfccs.tolist()), 
 																										 self.config.sample_rate, 
 																										 self.config.num_mfcc_coeffs)
 
@@ -382,37 +376,25 @@ class ANNModel(object):
 				num_frames = mfcc_features.shape[0]
 				num_features = mfcc_features.shape[1]
 
-				collapsed = list()
-				mask = np.zeros((max_num_frames * num_features), dtype=bool)
-
-				for i in range(0, num_frames): # TODO: there's gotta be a better way to do this
-						for j in range(0, num_features):
-							if len(collapsed) < 7566:
-								collapsed.append(mfcc_features[i][j])
-				collapsed = np.array(collapsed)
-				
-				# Truncate (or fill exactly)
-				if num_frames >= max_num_frames:
-					padded_mfcc_features = collapsed
-					mask = np.ones((max_num_frames * num_features), dtype=bool)	# All True's 
+				padded_mfcc_features = np.zeros( (max_num_frames, num_features) )
+        mask = np.zeros( (max_num_frames, num_features), dtype=bool)
+			
+				# Truncate (or fill exactly
+        if num_frames >= max_num_frames:
+          padded_mfcc_features = mfcc_features[0:max_num_frames,:] 
+          mask = np.ones((max_num_frames, num_features), dtype=bool)  # All True's 
 
 				# Append 0 MFCC vectors
-				elif num_frames < max_num_frames:		
-					delta = max_num_frames - num_frames 
-					zeros = np.zeros((delta * num_features))
-					
-					padded_mfcc_features = np.concatenate((collapsed, zeros), axis=0)
-					trues = np.ones((num_frames * num_features), dtype=bool)
-					falses = np.zeros((delta * num_features), dtype=bool) 
-					mask = np.concatenate((trues, falses), axis=0)
+        elif num_frames < max_num_frames:
+          delta = max_num_frames - num_frames
+          zeros = np.zeros((delta, num_features))
+          padded_mfcc_features = np.concatenate((mfcc_features, zeros), axis=0)
 
-				if padded_mfcc_features.shape[0] != 7566:
-					print 'features'
-					print padded_mfcc_features.shape
-				if mask.shape[0] != 7566:
-					print 'mask'
-					print mask.shape
-				return (padded_mfcc_features, mask)
+          trues = np.ones((num_frames, num_features), dtype=bool)
+          falses = np.zeros((delta, num_features), dtype=bool)
+          mask = np.concatenate((trues, falses), axis=0)
+
+        return (padded_mfcc_features, mask)
 
 
 
