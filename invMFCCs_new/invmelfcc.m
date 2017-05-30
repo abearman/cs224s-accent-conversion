@@ -21,7 +21,6 @@ function [x, aspc, spec] = invmelfcc(cep, sr, varargin)
 %sr = 16000;
 winpts = round(wintime*sr);
 nfft = 2^(ceil(log(double(winpts))/log(2)));
-nfft
 
 cep = lifter(cep, lifterexp, 1);   % 3rd arg nonzero means undo liftering
 

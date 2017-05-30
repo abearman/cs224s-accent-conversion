@@ -1,0 +1,34 @@
+NOTES
+1) Voice Conversion Using Artificial Neural Networks
+	- combining Deep Visual Analogy Networks wih Generative Adversarial Networks
+	** the analogy intuition is very much in line with our system
+	- their architecture:
+		~ CNN with encoder and decoder for analogy
+		~ this is then fed to a classifier
+		~ together = adversarial
+			(minimax equation)
+	- objective function: sum over 1/2 l2 norm of d - f(b-a+c) for some linear f with representations a, b, c, d related such that d - c = b - a
+
+2) Voice Conversion with Deep Neural Networks
+	- very basic ANN minimizing mean squared error
+	- deep autoencoder allows to use unsupervised
+		~ reconstruction error with gaussian noise = l2 error of (original + noise) - reconstructed
+		~ built up multiple layers of encode-decode pairs
+	- intution = encode spectral features with autoencoder, map with ANN, then decode with autoencoder
+
+3) Voice Conversion Using Artifical Neural Networks (again)
+	- first applied alignment step using dynamic programming to create paired feature vectors between the two
+	- trained multi-layer feedforward to map source MCEPs to target MCEPs
+		~ result = weight matrix that maps between the two
+		~ experimented with 3, 4, and 5 layer networks with various sizes of hidden layers
+		~ found best results with 25L 50N 50N 25L where L = linear and N = tangential output function
+	- evaluated with mel cepstral distortion (quality of voice transformation)
+
+TAKEAWAYS
+- Could try autoencoders for each layer -- seems like a fairly simple transition
+- None of these use RNNs!
+- Maybe we need to add an alignment step like in 2
+- Seems like more hidden layers are useful -- 2 definitely had a lot and 3 found that four layers was best
+- Should try MCD evaluation once we have something reasonable (https://pypi.python.org/pypi/mcd)
+- Should experiment with objective function
+- Seems like analogy network is more complicated but that paper had good results

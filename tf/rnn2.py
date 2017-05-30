@@ -22,7 +22,7 @@ class Config(object):
 		"""
 		batch_size = 32 
 		n_epochs = 50
-		lr = 1e-4
+		lr = 1e-5
 		max_num_frames = 582 
 		n_mfcc_features = 13		
 		state_size = 200
@@ -46,9 +46,9 @@ class RNNModel(object):
 				labels_placeholder: Labels placeholder tensor of shape
 														(batch_size, max_num_frames, n_mfcc_features), type tf.float32
 				input_masks_placeholder: Input masks placeholder tensor of shape
-																 (batch_size, max_num_frames, n_mfcc_features), type tf.bool
+																 (batch_size, max_num_frames), type tf.bool
 				labels_masks_placeholder: Labels masks placeholder tensor of shape
-																	(batch_size, max_num_frames, n_mfcc_features), type tf.bool
+																	(batch_size, max_num_frames), type tf.bool
 
 				Add these placeholders to self as the instance variables
 						self.input_placeholder
@@ -58,8 +58,8 @@ class RNNModel(object):
 				"""
 				self.input_placeholder = tf.placeholder(tf.float32, (None, self.config.max_num_frames, self.config.n_mfcc_features))
 				self.labels_placeholder = tf.placeholder(tf.float32, (None, self.config.max_num_frames, self.config.n_mfcc_features))
-				self.input_masks_placeholder = tf.placeholder(tf.bool, (None, self.config.max_num_frames, self.config.n_mfcc_features))
-				self.label_masks_placeholder = tf.placeholder(tf.bool, (None, self.config.max_num_frames, self.config.n_mfcc_features)) 
+				self.input_masks_placeholder = tf.placeholder(tf.bool, (None, self.config.max_num_frames))
+				self.label_masks_placeholder = tf.placeholder(tf.bool, (None, self.config.max_num_frames)) 
 
 
 		def create_feed_dict(self, inputs_batch, input_masks_batch, labels_batch=None, label_masks_batch=None):
@@ -110,7 +110,7 @@ class RNNModel(object):
 
 				# Masks are shape (?, 582, 13), but the last dimension is redundant, so we get rid of it when calculating
 				# the sequence length for the LSTM
-				source_num_frames = tf.reduce_sum(tf.cast(self.input_masks_placeholder[:,:,0], tf.int32), reduction_indices=1)
+				source_num_frames = tf.reduce_sum(tf.cast(self.input_masks_placeholder, tf.int32), reduction_indices=1)
 				outputs, final_state = dynamic_rnn(lstm_cell, self.input_placeholder, sequence_length=source_num_frames, dtype=tf.float32)
 
 				#print "LSTM outputs: ", outputs
@@ -120,9 +120,7 @@ class RNNModel(object):
 				W = tf.get_variable("W", shape=(self.config.state_size, self.config.n_mfcc_features), initializer=xavier) 
 				b = tf.get_variable("b", shape=(1, self.config.n_mfcc_features))
 
-				print tf.shape(outputs)
 				outputs = tf.reshape(outputs, [-1, self.config.state_size])
-				print tf.shape(outputs)
 				mfcc_preds = tf.matmul(outputs, W)
 				mfcc_preds = tf.reshape(mfcc_preds, [-1, self.config.max_num_frames, self.config.n_mfcc_features])
 				mfcc_preds += b
@@ -144,24 +142,27 @@ class RNNModel(object):
 				"""
 				# Euclidean distance between predictions, labels
 				# Shape: (?, max_num_frames, n_mfcc_features)
-				unmasked_subtracted_arr = tf.subtract(self.labels_placeholder, pred)
+				#unmasked_subtracted_arr = tf.subtract(self.labels_placeholder, pred)
 				#print "subtract: ", unmasked_subtracted_arr
 
 				# Shape: (?, max_num_frames, n_mfcc_features)
 				#print "input masks placeholder: ", self.input_masks_placeholder 
 				#masked_subtracted_arr = tf.boolean_mask(unmasked_subtracted_arr, self.input_masks_placeholder)
 				#masked_subtracted_arr = unmasked_subtracted_arr & tf.cast(self.input_masks_placeholder, tf.float32)
-				zeros = tf.zeros_like(unmasked_subtracted_arr)
-				masked_subtracted_arr = tf.where(self.input_masks_placeholder, unmasked_subtracted_arr, zeros)
+				#zeros = tf.zeros_like(unmasked_subtracted_arr)
+				#masked_subtracted_arr = tf.where(self.input_masks_placeholder, unmasked_subtracted_arr, zeros)
 				#print "subtracted masked: ", masked_subtracted_arr
 
 				# Shape: (?, max_num_frames, n_mfcc_features)
-				squared_masked_subtracted_arr = tf.square(masked_subtracted_arr)
+				#squared_masked_subtracted_arr = tf.square(masked_subtracted_arr)
 
 				# Shape: ()
-				loss = tf.sqrt(tf.reduce_sum(squared_masked_subtracted_arr) ) 
+				#loss = tf.sqrt(tf.reduce_sum(squared_masked_subtracted_arr) ) 
 
 				#print "loss: ", loss 
+				loss_vector = tf.nn.softmax_cross_entropy_with_logits(logits=pred, labels=self.labels_placeholder)
+				masked = tf.boolean_mask(loss_vector, self.label_masks_placeholder)
+				loss = tf.reduce_mean(masked)
 				return loss 
 
 
@@ -198,8 +199,7 @@ class RNNModel(object):
 				Returns:
 						loss: loss over the batch (a scalar)
 				"""
-				feed = self.create_feed_dict(inputs_batch, input_masks_batch, 
-																		 labels_batch=labels_batch, label_masks_batch=label_masks_batch)
+				feed = self.create_feed_dict(inputs_batch, input_masks_batch, labels_batch=labels_batch, label_masks_batch=label_masks_batch)
 				_, loss, summary = sess.run([self.train_op, self.loss, self.merged_summary_op], feed_dict=feed)
 				return loss, summary, feed
 
@@ -223,11 +223,11 @@ class RNNModel(object):
 				for input_batch, labels_batch, input_masks_batch, label_masks_batch in \
 										get_minibatches([inputs, labels, input_masks, label_masks], self.config.batch_size):
 						n_minibatches += 1
+
 						batch_loss, summary, feed = self.train_on_batch(sess, input_batch, input_masks_batch, labels_batch, label_masks_batch)
 						total_loss += batch_loss
 
 						train_writer.add_summary(summary, step_i)
-						#print "step_i: ", step_i
 						step_i += 1
 
 				return total_loss / n_minibatches, step_i, feed
@@ -261,7 +261,7 @@ class RNNModel(object):
 							predicted_mfccs = predicted_mfccs_batch[i,:,:]
 							inverted_wav_data = self.eng.invmelfcc(matlab.double(predicted_mfccs.tolist()), 16000.0)
 
-							#self.eng.soundsc(inverted_wav_data, 16000.0, nargout=0)
+							self.eng.soundsc(inverted_wav_data, 16000.0, nargout=0)
 							inverted_wav_data = np.squeeze(np.array(inverted_wav_data))
 
 							# Scales the waveform to be between -1 and 1
@@ -360,7 +360,7 @@ class RNNModel(object):
 				"""
 				Args:
 					mfcc_features: A numpy array of shape (num_frames, n_mfcc_features)
-					max_length: Tee maximum length to which the array should be truncated or zero-padded 
+					max_num_frames: The maximum length to which the array should be truncated or zero-padded 
 				"""
 				num_frames = mfcc_features.shape[0]
 				num_features = mfcc_features.shape[1]
@@ -368,10 +368,10 @@ class RNNModel(object):
 				padded_mfcc_features = np.zeros((max_num_frames, num_features)) 
 				mask = np.zeros((max_num_frames, num_features), dtype=bool)
 
-				# Truncate (or fill exactly
+				# Truncate (or fill exactly)
 				if num_frames >= max_num_frames:	
-					padded_mfcc_eatures = mfcc_features[0:max_num_frames,:] # TODO: why is this padded_mfcc_eatures?
-					mask = np.ones((max_num_frames, num_features), dtype=bool)	# All True's 
+					padded_mfcc_eatures = mfcc_features[0:max_num_frames,:]
+					mask = np.ones((max_num_frames), dtype=bool)	# All True's 
 
 				# Append 0 MFCC vectors
 				elif num_frames < max_num_frames:		
@@ -379,8 +379,8 @@ class RNNModel(object):
 					zeros = np.zeros((delta, num_features)) 
 					padded_mfcc_features = np.concatenate((mfcc_features, zeros), axis=0)
 
-					trues = np.ones((num_frames, num_features), dtype=bool)
-					falses = np.zeros((delta, num_features), dtype=bool) 
+					trues = np.ones((num_frames), dtype=bool)
+					falses = np.zeros((delta), dtype=bool) 
 					mask = np.concatenate((trues, falses), axis=0)
 
 				return (padded_mfcc_features, mask)
@@ -407,7 +407,6 @@ def main():
 			# Create a session for running Ops in the Graph
 			with tf.Session() as sess:
 					# Run the Op to initialize the variables
-
 					sess.run(init)
 					# Fit the model
 					losses = model.optimize(sess, inputs, labels, input_masks, label_masks)
