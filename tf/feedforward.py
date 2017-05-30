@@ -191,8 +191,11 @@ class ANNModel(object):
 
 				Args:
 						sess: tf.Session()
-						input_batch: np.ndarray of shape (n_samples, n_features)
-						labels_batch: np.ndarray of shape (n_samples, n_classes)
+						input_batch: np.ndarray of shape (batch_size, max_num_frames, num_mfcc_coeffs)
+						inputs_corrupted_batch: np.ndarray of shape (batch_size, max_num_frames, num_mfcc_coeffs)
+						input_masks_batch: np.ndarray of shape (batch_size, max_num_frames)
+						labels_batch: np.ndarray of shape (batch_size, max_num_frames, num_mfcc_coeffs)
+						label_masks_batch: np.ndarray of shape (batch_size, max_num_frames)
 				Returns:
 						loss: loss over the batch (a scalar)
 				"""
@@ -207,11 +210,11 @@ class ANNModel(object):
 
 				Args:
 						sess: tf.Session() object
-						inputs: np.ndarray of shape (n_samples, n_features)
-						inputs_corrupted: np.ndarray of shape (n_samples, n_features)
-						input_masks: boolean np.ndarray of shape (max_num_frames,)
-						labels: np.ndarray of shape (n_samples, n_classes)
-						label_masks: boolean np.ndarray of shape (max_num_frames,)
+						inputs: np.ndarray of shape (num_examples, max_num_frames, num_mfcc_coeffs) 
+						inputs_corrupted: np.ndarray of shape (num_examples, max_num_frames, num_mfcc_coeffs) 
+						input_masks: boolean np.ndarray of shape (num_examples, max_num_frames)
+						labels: np.ndarray of shape (num_examples, max_num_frames, num_mfcc_coeffs)
+						label_masks: boolean np.ndarray of shape (num_examples, max_num_frames)
 						train_writer: a tf.summary.FileWriter object
 						step_i: The global number of steps taken so far (i.e., batches we've done a full forward
 										and backward pass on) 
@@ -238,11 +241,11 @@ class ANNModel(object):
 
 				Args:
 						sess: tf.Session()
-						inputs: np.ndarray of shape (max_num_frames, n_mfcc_features)
-						inputs_corrupted: np.ndarray of shape (max_num_frames, n_mfcc_features)
-            input_masks: boolean np.ndarray of shape (max_num_frames,)
-						labels: np.ndarray of shape (max_num_frames, n_mfcc_features)
-						label_masks: boolean np.ndarray of shape (max_num_frames,)
+						inputs: np.ndarray of shape (num_examples, max_num_frames, num_mfcc_coeffs) 
+						inputs_corrupted: np.ndarray of shape (num_examples, max_num_frames, n_mfcc_features)
+            input_masks: boolean np.ndarray of shape (num_examples, max_num_frames)
+						labels: np.ndarray of shape (num_examples, max_num_frames, n_mfcc_features)
+						label_masks: boolean np.ndarray of shape (num_examples, max_num_frames)
 				Returns:
 						losses: list of loss per epoch
 				"""
@@ -264,8 +267,8 @@ class ANNModel(object):
 							
 							ind = 0
 							while ind < self.config.num_features:
-								mfccs[ind:] = predicted_mfccs[ind:ind+13]
-								ind += 13
+								mfccs[ind:] = predicted_mfccs[ind:ind+self.config.num_mfcc_coeffs]
+								ind += self.config.num_mfcc_coeffs
 
 							inverted_wav_data = self.eng.invmelfcc(matlab.double(mfccs.tolist()), 
 																										 self.config.sample_rate, 
