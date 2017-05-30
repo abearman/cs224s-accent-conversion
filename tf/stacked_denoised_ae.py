@@ -39,7 +39,7 @@ class Config(object):
 		corr_frac = 0.5  # Fraction of features to corrupt  
 
 
-class ANNModel(object):
+class StackedDenoisedAutoEncoder(object):
 		"""Implements a stacked, denoising autoencoder with a MSE loss."""
 
 		def add_placeholders(self):
@@ -378,7 +378,7 @@ def main():
 
 	with tf.Graph().as_default():
 			# Build the model and add the variable initializer Op
-			model = ANNModel(config)
+			model = StackedDenoisedAutoEncoder(config)
 			init = tf.global_variables_initializer()
 
 			print "Preprocessing data ..."
