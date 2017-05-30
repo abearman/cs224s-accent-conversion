@@ -29,7 +29,9 @@ class Config(object):
 		max_num_frames = 706  # This is the maximum length of any warped time series in the dataset 
 		num_mfcc = 13
 		num_features = 	max_num_frames * num_mfcc	
-		state_size = 200
+		state_size_1 = 50
+		state_size_2 = 50
+		state_size_3 = 75
 		dropout_keep_prob = 1.0 # 0.8
 		logs_path = "tensorboard/" + strftime("%Y_%m_%d_%H_%M_%S", gmtime())
 		corr_type = "masking"  # 'masking', 'salt_and_pepper', or 'none' 
@@ -111,13 +113,13 @@ class ANNModel(object):
 				"""
 
 				xavier = tf.contrib.layers.xavier_initializer()
-				W1 = tf.get_variable("W1", shape=(self.config.num_features, self.config.state_size), initializer=xavier) 
-				b1 = tf.get_variable("b1", shape=(1, self.config.state_size))
-				W2 = tf.get_variable("W2", shape=(self.config.state_size, self.config.num_features), initializer=xavier) 
-				b2 = tf.get_variable("b2", shape=(1, self.config.num_features))
-				W3 = tf.get_variable("W3", shape=(self.config.num_features, self.config.state_size), initializer=xavier) 
-				b3 = tf.get_variable("b3", shape=(1, self.config.state_size))
-				W4 = tf.get_variable("W4", shape=(self.config.state_size, self.config.num_features), initializer=xavier) 
+				W1 = tf.get_variable("W1", shape=(self.config.num_features, self.config.state_size_1), initializer=xavier) 
+				b1 = tf.get_variable("b1", shape=(1, self.config.state_size_1))
+				W2 = tf.get_variable("W2", shape=(self.config.state_size_1, self.config.state_size_2), initializer=xavier) 
+				b2 = tf.get_variable("b2", shape=(1, self.config.state_size_2))
+				W3 = tf.get_variable("W3", shape=(self.config.state_size_2, self.config.state_size_3), initializer=xavier) 
+				b3 = tf.get_variable("b3", shape=(1, self.config.state_size_3))
+				W4 = tf.get_variable("W4", shape=(self.config.state_size_3, self.config.num_features), initializer=xavier) 
 				b4 = tf.get_variable("b4", shape=(1, self.config.num_features))
 
 				# [batch, num_features] x [num_features, state_size] = [batch, state_size]
@@ -125,9 +127,9 @@ class ANNModel(object):
 				# [batch, state_size] x [state_size, num_features] = [batch, num_features]
 				h2 = tf.nn.relu(tf.matmul(mfcc_preds, W2) + b2)
 				# [batch, num_features] x [num_features, state_size] = [batch, state_size]
-				h3 = tf.relu(tf.matmul(mfcc_preds, W3) + b3)
+				h3 = tf.nn.relu(tf.matmul(mfcc_preds, W3) + b3)
 				# [batch, state_size] x [state_size, num_features] = [batch, num_features]
-				h4 = tf.relu(tf.matmul(mfcc_preds, W4) + b4)
+				h4 = tf.nn.relu(tf.matmul(mfcc_preds, W4) + b4)
 
 				#masked_preds = tf.boolean_mask(mfcc_preds, self.input_masks_placeholder)
 	
@@ -325,18 +327,12 @@ class ANNModel(object):
 				input_masks = []
 				label_masks = []
 				
-				# American English male bdl
 				SOURCE_DIR = '../data/cmu_arctic/us-english-male-bdl/wav/'
 				TARGET_DIR = '../data/cmu_arctic/scottish-english-male-awb/wav/'
 				for source_fname, target_fname in zip(os.listdir(SOURCE_DIR), os.listdir(TARGET_DIR)):
 					(source_sample_rate, source_wav_data) = wav.read(SOURCE_DIR + source_fname) 
 					(target_sample_rate, target_wav_data) = wav.read(TARGET_DIR + target_fname)
 
-					#source_mfcc_features = np.transpose(np.array(self.eng.melfcc(matlab.double(source_wav_data.tolist()), float(source_sample_rate))))
-					#target_mfcc_features = np.transpose(np.array(self.eng.melfcc(matlab.double(target_wav_data.tolist()), float(target_sample_rate))))
-
-					# Gets the MFCC feature matrices using the Python library.
-					# MFCC features should be a numpy array of shape (num_frames x num_coefficients)	
 					source_mfcc_features = np.array(mfcc(source_wav_data, source_sample_rate))
 					target_mfcc_features = np.array(mfcc(target_wav_data, target_sample_rate))
 
