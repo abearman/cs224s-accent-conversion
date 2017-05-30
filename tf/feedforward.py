@@ -13,6 +13,8 @@ from tensorflow.python.ops.nn import dynamic_rnn
 from utils.general_utils import get_minibatches
 
 from fast_dtw import get_dtw_series 
+from corrupt_data import corrupt_input
+
 
 class Config(object):
 		"""Holds model hyperparams and data information.
@@ -30,10 +32,12 @@ class Config(object):
 		state_size = 200
 		dropout_keep_prob = 1.0 # 0.8
 		logs_path = "tensorboard/" + strftime("%Y_%m_%d_%H_%M_%S", gmtime())
+		corr_type = "masking"  # 'masking', 'salt_and_pepper', or 'none' 
+		corr_frac = 0.5  # Fraction of features to corrupt  
 
 
 class ANNModel(object):
-		"""Implements an LSTM machine translation-esque baseline model with a regression loss."""
+		"""Implements a stacked, denoising autoencoder with a MSE loss."""
 
 		def add_placeholders(self):
 				"""Generates placeholder variables to represent the input tensors.
@@ -59,12 +63,13 @@ class ANNModel(object):
 						self.label_masks_placeholder
 				"""
 				self.input_placeholder = tf.placeholder(tf.float32, (None, self.config.num_features))
+				self.input_corrupted_placeholder = tf.placeholder(tf.float32, (None, self.config.num_features))
 				self.labels_placeholder = tf.placeholder(tf.float32, (None, self.config.num_features))
 				self.input_masks_placeholder = tf.placeholder(tf.bool, (None, self.config.num_features))
 				self.label_masks_placeholder = tf.placeholder(tf.bool, (None, self.config.num_features)) 
 
 
-		def create_feed_dict(self, inputs_batch, input_masks_batch, labels_batch=None, label_masks_batch=None):
+		def create_feed_dict(self, inputs_batch, inputs_corrupted_batch, input_masks_batch, labels_batch=None, label_masks_batch=None):
 				"""Creates the feed_dict for training the given step.
 
 				A feed_dict takes the form of:
@@ -75,6 +80,7 @@ class ANNModel(object):
 				
 				Args:
 						inputs_batch: A batch of input data.
+						inputs_corrupted_batch: A batch of noised input data
 						input_masks_batch: A batch of input masks.
 						labels_batch: (Optional) a batch of label data.
 						labels_mask_batch: (Optional) a batch of label masks.
@@ -83,6 +89,7 @@ class ANNModel(object):
 				"""
 				feed_dict = {
 					self.input_placeholder: inputs_batch,
+					self.input_corrupted_placeholder = inputs_corrupted_batch, 
 					self.labels_placeholder: labels_batch,
 					self.input_masks_placeholder: input_masks_batch,
 					self.label_masks_placeholder: label_masks_batch
@@ -94,12 +101,10 @@ class ANNModel(object):
 				"""Adds the core transformation for this model which transforms a batch of input
 				data into a batch of predictions. In this case, the transformation is a linear layer plus a
 				softmax transformation:
-
-				y = softmax(Wx + b)
-
-				Hint: Make sure to create tf.Variables as needed.
-				Hint: For this simple use-case, it's sufficient to initialize both weights W
-										and biases b with zeros.
+			
+				Implements a stacked, denoising autoencoder. 
+				Autoencoder learns two mappings: (1) Encoder: input ==> hidden layer, and (2) Decoder: hidden layer ==> output layer
+				
 
 				Returns:
 						pred: A tensor of shape (batch_size, n_classes)
@@ -116,13 +121,13 @@ class ANNModel(object):
 				b4 = tf.get_variable("b4", shape=(1, self.config.num_features))
 
 				# [batch, num_features] x [num_features, state_size] = [batch, state_size]
-				mfcc_preds = tf.matmul(self.input_placeholder, W1) + b1
+				h1 = tf.nn.relu(tf.matmul(self.input_placeholder, W1) + b1)
 				# [batch, state_size] x [state_size, num_features] = [batch, num_features]
-				mfcc_preds = tf.matmul(mfcc_preds, W2) + b2
+				h2 = tf.nn.relu(tf.matmul(mfcc_preds, W2) + b2)
 				# [batch, num_features] x [num_features, state_size] = [batch, state_size]
-				mfcc_preds = tf.matmul(mfcc_preds, W3) + b3
+				h3 = tf.relu(tf.matmul(mfcc_preds, W3) + b3)
 				# [batch, state_size] x [state_size, num_features] = [batch, num_features]
-				mfcc_preds = tf.matmul(mfcc_preds, W4) + b4
+				h4 = tf.relu(tf.matmul(mfcc_preds, W4) + b4)
 
 				#masked_preds = tf.boolean_mask(mfcc_preds, self.input_masks_placeholder)
 	
@@ -130,8 +135,19 @@ class ANNModel(object):
 				return mfcc_preds 
 
 
+		def create_encode_layer(self):
+			with tf.variable_scope("encoder"):
+				ha = tf.nn.relu( tf.add( tf.matmul(self.input_placeholder, W), bh) )
+				return ha
+
+		def create_decode_layer(self):
+			with tf.variable_scope("decoder"):
+				hd = tf.add( tf.matmul(self.encode, W), bv) 
+				return hd
+
+ 
 		def add_loss_op(self, pred):
-				"""Adds cross_entropy_loss ops to the computational graph.
+				"""Adds mean squared error ops to the computational graph.
 
 				Args:
 						pred: A tensor of shape (batch_size, max_num_frames, n_mfcc_features)
@@ -165,7 +181,7 @@ class ANNModel(object):
 				return train_op
 
 
-		def train_on_batch(self, sess, inputs_batch, input_masks_batch, labels_batch, label_masks_batch):
+		def train_on_batch(self, sess, inputs_batch, inputs_corrupted_batch, input_masks_batch, labels_batch, label_masks_batch):
 				"""Perform one step of gradient descent on the provided batch of data.
 
 				Args:
@@ -175,19 +191,21 @@ class ANNModel(object):
 				Returns:
 						loss: loss over the batch (a scalar)
 				"""
-				feed = self.create_feed_dict(inputs_batch, input_masks_batch, labels_batch=labels_batch, label_masks_batch=label_masks_batch)
+				feed = self.create_feed_dict(inputs_batch, inputs_corrupted_batch, input_masks_batch, 
+																		 labels_batch=labels_batch, label_masks_batch=label_masks_batch)
 				_, loss, summary = sess.run([self.train_op, self.loss, self.merged_summary_op], feed_dict=feed)
 				return loss, summary, feed
 
 
-		def run_epoch(self, sess, inputs, labels, input_masks, label_masks, train_writer, step_i):
+		def run_epoch(self, sess, inputs, inputs_corrupted, input_masks, labels, label_masks, train_writer, step_i):
 				"""Runs an epoch of training.
 
 				Args:
 						sess: tf.Session() object
 						inputs: np.ndarray of shape (n_samples, n_features)
-						labels: np.ndarray of shape (n_samples, n_classes)
+						inputs_corrupted: np.ndarray of shape (n_samples, n_features)
 						input_masks: boolean np.ndarray of shape (max_num_frames,)
+						labels: np.ndarray of shape (n_samples, n_classes)
 						label_masks: boolean np.ndarray of shape (max_num_frames,)
 						train_writer: a tf.summary.FileWriter object
 						step_i: The global number of steps taken so far (i.e., batches we've done a full forward
@@ -196,11 +214,12 @@ class ANNModel(object):
 						average_loss: scalar. Average minibatch loss of model on epoch.
 				"""
 				n_minibatches, total_loss = 0, 0
-				for input_batch, labels_batch, input_masks_batch, label_masks_batch in \
-										get_minibatches([inputs, labels, input_masks, label_masks], self.config.batch_size):
+				for input_batch, inputs_corrupted_batch, input_masks_batch, labels_batch, label_masks_batch in \
+										get_minibatches([inputs, inputs_corrupted, input_masks, labels, label_masks], self.config.batch_size):
 						n_minibatches += 1
 
-						batch_loss, summary, feed = self.train_on_batch(sess, input_batch, input_masks_batch, labels_batch, label_masks_batch)
+						batch_loss, summary, feed = self.train_on_batch(sess, input_batch, inputs_corrupted_batch, input_masks_batch, 
+																														labels_batch, label_masks_batch)
 						total_loss += batch_loss
 
 						train_writer.add_summary(summary, step_i)
@@ -209,14 +228,15 @@ class ANNModel(object):
 				return total_loss / n_minibatches, step_i, feed
 
 
-		def optimize(self, sess, inputs, labels, input_masks, label_masks):
+		def optimize(self, sess, inputs, inputs_corrupted, input_masks, labels, label_masks):
 				"""Fit model on provided data.
 
 				Args:
 						sess: tf.Session()
 						inputs: np.ndarray of shape (max_num_frames, n_mfcc_features)
+						inputs_corrupted: np.ndarray of shape (max_num_frames, n_mfcc_features)
+            input_masks: boolean np.ndarray of shape (max_num_frames,)
 						labels: np.ndarray of shape (max_num_frames, n_mfcc_features)
-						input_masks: boolean np.ndarray of shape (max_num_frames,)
 						label_masks: boolean np.ndarray of shape (max_num_frames,)
 				Returns:
 						losses: list of loss per epoch
@@ -227,7 +247,7 @@ class ANNModel(object):
 				losses = []
 				for epoch in range(self.config.n_epochs):
 						start_time = time()
-						average_loss, step_i, feed = self.run_epoch(sess, inputs, labels, input_masks, label_masks, train_writer, step_i)
+						average_loss, step_i, feed = self.run_epoch(sess, inputs, inputs_corrupted, input_masks, labels, label_masks, train_writer, step_i)
 						duration = time() - start_time
 						print 'Epoch {:}: loss = {:.2f} ({:.3f} sec)'.format(epoch, average_loss, duration)
 						losses.append(average_loss)
@@ -283,7 +303,8 @@ class ANNModel(object):
 				self.eng = self.setup_matlab_engine()
 				self.mfcc = None	# Add a handle to this so we can set it later
 				self.add_placeholders()
-				self.pred = self.add_prediction_op()
+				self.encode = self.create_encode_layer()
+				self.pred = self.create_decode_layer()
 				self.loss = self.add_loss_op(self.pred)
 				tf.summary.scalar("loss", self.loss)
 				self.train_op = self.add_training_op(self.loss)
@@ -299,6 +320,7 @@ class ANNModel(object):
 					train_labels: A list of tuples, one for each training example: (accent 2 padded MFCC frames, accent 2 mask)
 				"""
 				inputs = [] 
+				inputs_corrupted = []
 				labels = []	
 				input_masks = []
 				label_masks = []
@@ -321,23 +343,30 @@ class ANNModel(object):
 					# Aligns the MFCC features matrices using FastDTW.
 					source_mfcc_features, target_mfcc_features = get_dtw_series(source_mfcc_features, target_mfcc_features)
 
+					# Corrupt the input (source) MFCC features
+					source_mfcc_features_corrupted = corrupt_input(source_mfcc_features, corr_frac=self.config.corr_frac,
+																												 corr_type=self.config.corr_type) 
+
 					# Pads the MFCC feature matrices (rows) to length config.max_num_frames
 					source_padded_frames, source_mask = self.pad_sequence(source_mfcc_features, config.max_num_frames)
+					source_padded_frames_corrupted, _ = self.pad_sequence(source_mfcc_features_corrupted, config.max_num_frames)
 					target_padded_frames, target_mask = self.pad_sequence(target_mfcc_features, config.max_num_frames)
 
 					inputs.append(source_padded_frames) 
+					inputs_corrupted.append(source_padded_frames_corrupted)
+          input_masks.append(source_mask)
 					labels.append(target_padded_frames) 
-					input_masks.append(source_mask)
 					label_masks.append(target_mask)	
 
 				randomized_indices = range(0, len(inputs)) 
 				random.shuffle(randomized_indices)
 				inputs = [inputs[i] for i in randomized_indices]
+				inputs_corrupted = [inputs_corrupted[i] for i in randomized_indices]
+        input_masks = [input_masks[i] for i in randomized_indices]
 				labels = [labels[i] for i in randomized_indices]
-				input_masks = [input_masks[i] for i in randomized_indices]
 				label_masks = [label_masks[i] for i in randomized_indices] 
 
-				return inputs, labels, input_masks, label_masks
+				return inputs, inputs_corrupted, input_masks, labels, label_masks
 
 
 		def pad_sequence(self, mfcc_features, max_num_frames):
@@ -397,7 +426,7 @@ def main():
 			init = tf.global_variables_initializer()
 
 			print "Preprocessing data ..."
-			inputs, labels, input_masks, label_masks = model.preprocess_data(config)
+			inputs, inputs_corrupted, input_masks, labels, label_masks = model.preprocess_data(config)
 			print "Finished preprocessing data"
 
 			# Create a session for running Ops in the Graph
@@ -405,7 +434,7 @@ def main():
 					# Run the Op to initialize the variables 
 					sess.run(init)
 					# Fit the model
-					losses = model.optimize(sess, inputs, labels, input_masks, label_masks)
+					losses = model.optimize(sess, inputs, inputs_corrupted, input_masks, labels, label_masks)
 
 
 if __name__ == "__main__":
