@@ -24,7 +24,7 @@ class Config(object):
 		batch_size = 32 
 		n_epochs = 50
 		lr = 1e-5
-		max_num_frames = 582 
+		max_num_frames = 706  # This is the maximum length of any warped time series in the dataset 
 		num_mfcc = 13
 		num_features = 	max_num_frames * num_mfcc	
 		state_size = 200
@@ -306,7 +306,6 @@ class ANNModel(object):
 				# American English male bdl
 				SOURCE_DIR = '../data/cmu_arctic/us-english-male-bdl/wav/'
 				TARGET_DIR = '../data/cmu_arctic/scottish-english-male-awb/wav/'
-				max_frames = 0
 				for source_fname, target_fname in zip(os.listdir(SOURCE_DIR), os.listdir(TARGET_DIR)):
 					(source_sample_rate, source_wav_data) = wav.read(SOURCE_DIR + source_fname) 
 					(target_sample_rate, target_wav_data) = wav.read(TARGET_DIR + target_fname)
@@ -322,10 +321,6 @@ class ANNModel(object):
 					# Aligns the MFCC features matrices using FastDTW.
 					source_mfcc_features, target_mfcc_features = get_dtw_series(source_mfcc_features, target_mfcc_features)
 
-					if source_mfcc_features.shape[0] > max_frames:
-						max_frames = source_mfcc_features.shape[0]
-						print "max frames so far: ", max_frames 
-
 					# Pads the MFCC feature matrices (rows) to length config.max_num_frames
 					source_padded_frames, source_mask = self.pad_sequence(source_mfcc_features, config.max_num_frames)
 					target_padded_frames, target_mask = self.pad_sequence(target_mfcc_features, config.max_num_frames)
@@ -334,8 +329,6 @@ class ANNModel(object):
 					labels.append(target_padded_frames) 
 					input_masks.append(source_mask)
 					label_masks.append(target_mask)	
-
-				print "final max frames: ", max_frames
 
 				randomized_indices = range(0, len(inputs)) 
 				random.shuffle(randomized_indices)
