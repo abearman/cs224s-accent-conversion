@@ -347,9 +347,9 @@ class ANNModel(object):
 																												 corr_type=self.config.corr_type) 
 
 					# Pads the MFCC feature matrices (rows) to length config.max_num_frames
-					source_padded_frames, source_mask = self.pad_sequence(source_mfcc_features, config.max_num_frames)
-					source_padded_frames_corrupted, _ = self.pad_sequence(source_mfcc_features_corrupted, config.max_num_frames)
-					target_padded_frames, target_mask = self.pad_sequence(target_mfcc_features, config.max_num_frames)
+					source_padded_frames, source_mask = pad_sequence(source_mfcc_features, config.max_num_frames)
+					source_padded_frames_corrupted, _ = pad_sequence(source_mfcc_features_corrupted, config.max_num_frames)
+					target_padded_frames, target_mask = pad_sequence(target_mfcc_features, config.max_num_frames)
 
 					inputs.append(source_padded_frames) 
 					inputs_corrupted.append(source_padded_frames_corrupted)
