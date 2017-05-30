@@ -280,7 +280,7 @@ class ANNModel(object):
 
 
 		def build(self):
-				#self.eng = self.setup_matlab_engine()
+				self.eng = self.setup_matlab_engine()
 				self.mfcc = None	# Add a handle to this so we can set it later
 				self.add_placeholders()
 				self.pred = self.add_prediction_op()
