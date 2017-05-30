@@ -27,6 +27,7 @@ class Config(object):
 		lr = 1e-5
 		max_num_frames = 706  # This is the maximum length of any warped time series in the dataset 
 		num_mfcc_coeffs = 13
+		sample_rate = 16000.0
 		num_features = max_num_frames * num_mfcc_coeffs 
 		state_size_1 = 50
 		state_size_2 = 50
@@ -266,9 +267,11 @@ class ANNModel(object):
 								mfccs[ind:] = predicted_mfccs[ind:ind+13]
 								ind += 13
 
-							inverted_wav_data = self.eng.invmelfcc(matlab.double(mfccs.tolist()), 16000.0)
+							inverted_wav_data = self.eng.invmelfcc(matlab.double(mfccs.tolist()), 
+																										 self.config.sample_rate, 
+																										 self.config.num_mfcc_coeffs)
 
-							self.eng.soundsc(inverted_wav_data, 16000.0, nargout=0)
+							self.eng.soundsc(inverted_wav_data, self.config.sample_rate, nargout=0)
 							inverted_wav_data = np.squeeze(np.array(inverted_wav_data))
 
 							# Scales the waveform to be between -1 and 1
@@ -276,7 +279,7 @@ class ANNModel(object):
 							minVec = np.min(inverted_wav_data)
 							inverted_wav_data = ((inverted_wav_data - minVec) / (maxVec - minVec) - 0.5) * 2
 	 
-							wav.write('learned_wav' + str(i) + '.wav', 16000.0, inverted_wav_data)
+							wav.write('learned_wav' + str(i) + '.wav', self.config.sample_rate, inverted_wav_data)
 
 				return losses
 
@@ -335,8 +338,8 @@ class ANNModel(object):
 					(source_sample_rate, source_wav_data) = wav.read(SOURCE_DIR + source_fname) 
 					(target_sample_rate, target_wav_data) = wav.read(TARGET_DIR + target_fname)
 
-					source_mfcc_features = np.array(mfcc(source_wav_data, source_sample_rate))
-					target_mfcc_features = np.array(mfcc(target_wav_data, target_sample_rate))
+					source_mfcc_features = np.array(mfcc(source_wav_data, samplerate=source_sample_rate, numcep=self.config.num_mfcc_coeffs))
+					target_mfcc_features = np.array(mfcc(target_wav_data, samplerate=target_sample_rate, numcep=self.config.num_mfcc_coeffs))
 
 					# Aligns the MFCC features matrices using FastDTW.
 					source_mfcc_features, target_mfcc_features = get_dtw_series(source_mfcc_features, target_mfcc_features)
