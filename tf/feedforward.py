@@ -11,9 +11,8 @@ import tensorflow as tf
 from tensorflow.python.ops.nn import dynamic_rnn
 
 from utils.general_utils import get_minibatches, batch_multiply_by_matrix
-
-from fast_dtw import get_dtw_series 
-from corrupt_data import corrupt_input
+from utils.fast_dtw import get_dtw_series 
+from utils.corrupt_data import corrupt_input
 
 
 class Config(object):
