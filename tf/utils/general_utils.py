@@ -3,6 +3,20 @@ import time
 import numpy as np
 
 
+def batch_multiply_by_matrix(matrix=None, batch=None, matrixByBatch=False):
+  ret = None
+  if matrixByBatch:
+    ret = tf.scan(lambda a, x: tf.matmul(matrix, x), batch)
+  else:
+    n = batch.get_shape().as_list()[1]
+    m = batch.get_shape().as_list()[2]
+    c = matrix.get_shape().as_list()[1]
+    batch = tf.reshape(batch, [-1, m])
+    ret = tf.matmul(batch, matrix)
+    ret = tf.reshape(ret, [-1, n, c])
+  return ret
+
+
 def get_minibatches(data, minibatch_size, shuffle=True):
     """
     Iterates through the provided data one minibatch at at time. You can use this function to

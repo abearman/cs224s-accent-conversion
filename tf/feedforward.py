@@ -10,7 +10,7 @@ from python_speech_features import mfcc
 import tensorflow as tf
 from tensorflow.python.ops.nn import dynamic_rnn
 
-from utils.general_utils import get_minibatches
+from utils.general_utils import get_minibatches, batch_multiply_by_matrix
 
 from fast_dtw import get_dtw_series 
 from corrupt_data import corrupt_input
@@ -27,8 +27,8 @@ class Config(object):
 		n_epochs = 50
 		lr = 1e-5
 		max_num_frames = 706  # This is the maximum length of any warped time series in the dataset 
-		num_mfcc = 13
-		num_features = 	max_num_frames * num_mfcc	
+		num_mfcc_coeffs = 13
+		num_features = max_num_frames * num_mfcc_coeffs 
 		state_size_1 = 50
 		state_size_2 = 50
 		state_size_3 = 75
@@ -50,9 +50,11 @@ class ANNModel(object):
 				Adds following nodes to the computational graph
 
 				input_placeholder: Input placeholder tensor of shape
-													 (batch_size, max_num_frames, n_mfcc_features), type tf.float32
+													 (batch_size, max_num_frames, num_mfcc_coeffs), type tf.float32
+				input_placeholder: Corrupted innput placeholder tensor of shape
+                           (batch_size, max_num_frames, num_mfcc_coeffs), type tf.float32
 				labels_placeholder: Labels placeholder tensor of shape
-														(batch_size, max_num_frames, n_mfcc_features), type tf.float32
+														(batch_size, max_num_frames, num_mfcc_coeffs), type tf.float32
 				input_masks_placeholder: Input masks placeholder tensor of shape
 																 (batch_size, max_num_frames), type tf.bool
 				labels_masks_placeholder: Labels masks placeholder tensor of shape
@@ -60,15 +62,16 @@ class ANNModel(object):
 
 				Add these placeholders to self as the instance variables
 						self.input_placeholder
+						self.input_corrupted_placeholder
 						self.labels_placeholder
 						self.input_masks_placeholder
 						self.label_masks_placeholder
 				"""
-				self.input_placeholder = tf.placeholder(tf.float32, (None, self.config.num_features))
-				self.input_corrupted_placeholder = tf.placeholder(tf.float32, (None, self.config.num_features))
-				self.labels_placeholder = tf.placeholder(tf.float32, (None, self.config.num_features))
-				self.input_masks_placeholder = tf.placeholder(tf.bool, (None, self.config.num_features))
-				self.label_masks_placeholder = tf.placeholder(tf.bool, (None, self.config.num_features)) 
+				self.input_placeholder = tf.placeholder(tf.float32, (None, self.config.max_num_frames, self.config.num_mfcc_coeffs))
+				self.input_corrupted_placeholder = tf.placeholder(tf.float32, (None, self.config.max_num_frames, self.config.num_mfcc_coeffs))
+				self.labels_placeholder = tf.placeholder(tf.float32, (None, self.config.max_num_frames, self.config.num_mfcc_coeffs))
+				self.input_masks_placeholder = tf.placeholder(tf.bool, (None, self.config.max_num_frames))
+				self.label_masks_placeholder = tf.placeholder(tf.bool, (None, self.config.max_num_frames)) 
 
 
 		def create_feed_dict(self, inputs_batch, inputs_corrupted_batch, input_masks_batch, labels_batch=None, label_masks_batch=None):
