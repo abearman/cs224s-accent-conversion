@@ -22,7 +22,7 @@ class Config(object):
 		"""
 		batch_size = 32 
 		n_epochs = 50
-		lr = 1e-5
+		lr = 1e-4
 		max_num_frames = 582 
 		n_mfcc_features = 13		
 		state_size = 200

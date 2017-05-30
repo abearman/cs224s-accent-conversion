@@ -12,6 +12,7 @@ from tensorflow.python.ops.nn import dynamic_rnn
 
 from utils.general_utils import get_minibatches
 
+from fast_dtw import get_dtw_series 
 
 class Config(object):
 		"""Holds model hyperparams and data information.
@@ -262,6 +263,7 @@ class ANNModel(object):
 				print "Starting matlab ... type in your password if prompted"
 				eng = matlab.engine.start_matlab()
 				eng.addpath('../invMFCCs_new')
+				print "Done starting matlab"
 				return eng				
 
 
@@ -280,7 +282,7 @@ class ANNModel(object):
 
 
 		def build(self):
-				self.eng = self.setup_matlab_engine()
+				#self.eng = self.setup_matlab_engine()
 				self.mfcc = None	# Add a handle to this so we can set it later
 				self.add_placeholders()
 				self.pred = self.add_prediction_op()
@@ -305,14 +307,22 @@ class ANNModel(object):
 				
 				SOURCE_DIR = '../data/cmu_arctic/us-english-male-bdl/wav/'
 				TARGET_DIR = '../data/cmu_arctic/scottish-english-male-awb/wav/'
+				max_frames = 0
 				for source_fname, target_fname in zip(os.listdir(SOURCE_DIR), os.listdir(TARGET_DIR)):
 					(source_sample_rate, source_wav_data) = wav.read(SOURCE_DIR + source_fname) 
 					(target_sample_rate, target_wav_data) = wav.read(TARGET_DIR + target_fname)
 
-					# MFCC features should be a numpy array of shape (num_frames x num_coefficients)
 					source_mfcc_features = np.array(mfcc(source_wav_data, source_sample_rate))
 					target_mfcc_features = np.array(mfcc(target_wav_data, target_sample_rate))
 
+					# Aligns the MFCC features matrices using FastDTW.
+					source_mfcc_features, target_mfcc_features = get_dtw_series(source_mfcc_features, target_mfcc_features)
+
+					if source_mfcc_features.shape[0] > max_frames:
+						max_frames = source_mfcc_features.shape[0]
+						print "max frames so far: ", max_frames 
+
+					# Pads the MFCC feature matrices (rows) to length config.max_num_frames
 					source_padded_frames, source_mask = self.pad_sequence(source_mfcc_features, config.max_num_frames)
 					target_padded_frames, target_mask = self.pad_sequence(target_mfcc_features, config.max_num_frames)
 
@@ -321,6 +331,7 @@ class ANNModel(object):
 					input_masks.append(source_mask)
 					label_masks.append(target_mask)	
 
+				print "final max frames: ", max_frames
 
 				randomized_indices = range(0, len(inputs)) 
 				random.shuffle(randomized_indices)
