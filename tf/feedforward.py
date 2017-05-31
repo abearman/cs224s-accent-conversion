@@ -24,7 +24,7 @@ class Config(object):
 		"""
 		batch_size = 16 
 		n_epochs = 1000
-		lr = 1e-3
+		lr = 1e-2
 		max_num_frames = 706	# This is the maximum length of any warped time series in the dataset 
 		num_mfcc_coeffs = 13
 		sample_rate = 16000.0
@@ -259,11 +259,11 @@ class ANNModel(object):
 						print "predicted shape: ", predicted_mfccs_batch[0].shape
 
 						for i in range(predicted_mfccs_batch.shape[0]):
-							predicted_mfccs = predicted_mfccs_batch[i,:]
+							print "Converting wavefile ", i 
+							predicted_mfccs_transposed = np.transpose(predicted_mfccs_batch[i,:,:])
 
-							inverted_wav_data = self.eng.invmelfcc(matlab.double(predicted_mfccs.tolist()), 
-																										 self.config.sample_rate, 
-																										 self.config.num_mfcc_coeffs)
+							# MFCC features need to be a numpy array of shape (num_coefficients x num_frames) in order to be passed to the invmelfcc function
+							inverted_wav_data = self.eng.invmelfcc(matlab.double(predicted_mfccs_transposed.tolist()), self.config.sample_rate, self.config.num_mfcc_coeffs)
 
 							#self.eng.soundsc(inverted_wav_data, self.config.sample_rate, nargout=0)
 							inverted_wav_data = np.squeeze(np.array(inverted_wav_data))
@@ -344,10 +344,6 @@ class ANNModel(object):
 					input_masks.append(source_mask)
 					labels.append(target_padded_frames) 
 					label_masks.append(target_mask)	
-					print "inputs shape: ", source_padded_frames.shape
-					print "input masks: ", source_mask.shape
-					print "labels shape: ", target_padded_frames.shape
-					print "label masks: ", target_mask.shape 
 
 				randomized_indices = range(0, len(inputs)) 
 				random.shuffle(randomized_indices)
