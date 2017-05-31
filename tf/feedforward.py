@@ -119,20 +119,20 @@ class ANNModel(object):
 
 				# [batch, max_num_frames, num_mfcc_coeffs] x [max_num-frames * num_mfcc_coeffs, state_size] = [batch, state_size1]
 				print "inputs shape: ", self.input_placeholder
-				h1 = tf.nn.relu(batch_multiply_by_matrix(batch=self.input_placeholder, matrix=W1) + b1)
+				h1 = batch_multiply_by_matrix(batch=self.input_placeholder, matrix=W1) + b1
 				print "h1 shape: ", h1
 
 				# [batch, state_size1] x [state_size1, state_size2] = [batch, state_size2]
-				h2 = tf.nn.relu(tf.matmul(h1, W2) + b2)
+				h2 = tf.tanh(tf.matmul(h1, W2) + b2)
 				print "h2 shape: ", h2
 				
 				# [batch, state_size2] x [state_size2, state_size3] = [batch, state_size3]
-				h3 = tf.nn.relu(tf.matmul(h2, W3) + b3)
+				h3 = tf.tanh(tf.matmul(h2, W3) + b3)
 				print "h3 shape: ", h3
 
 				# [batch, state_size3] x [state_size3, max_num_frames * num_mfcc_coeffs] = [batch, max_num_frames, num_mfcc_coeffs]
 				print "W4 shape: ", W4
-				mfcc_preds = tf.nn.relu(tf.matmul(h3, W4) + b4)
+				mfcc_preds = tf.matmul(h3, W4) + b4
 				mfcc_preds = tf.reshape(mfcc_preds, (-1, self.config.max_num_frames, self.config.num_mfcc_coeffs))
 				print "mfcc preds shape: ", mfcc_preds
 
@@ -149,9 +149,10 @@ class ANNModel(object):
 				Returns:
 						loss: A 0-d tensor (scalar)
 				"""
-				unmasked_loss = tf.squared_difference(pred, self.labels_placeholder)
-				loss_masked = tf.boolean_mask(unmasked_loss, self.label_masks_placeholder)
-				loss = tf.reduce_mean(loss_masked)
+				#unmasked_loss = tf.squared_difference(pred, self.labels_placeholder)
+				loss = tf.reduce_mean( tf.squared_difference(pred, self.labels_placeholder))
+				#loss_masked = tf.boolean_mask(unmasked_loss, self.label_masks_placeholder)
+				#loss = tf.reduce_mean(loss_masked)
 				return loss 
 
 
