@@ -1,4 +1,6 @@
-def pad_sequence(self, mfcc_features, max_num_frames):
+import numpy as np
+
+def pad_sequence(mfcc_features, max_num_frames):
 		"""
 		Args:
 			mfcc_features: a np.ndarray array of shape (num_frames, num_mfcc_coeffs)
@@ -22,7 +24,7 @@ def pad_sequence(self, mfcc_features, max_num_frames):
 		# Append 0 MFCC vectors
 		elif num_frames < max_num_frames:
 			delta = max_num_frames - num_frames
-			zeros = np.zeros((delta, num_features))
+			zeros = np.zeros((delta, num_mfcc_coeffs))
 			padded_mfcc_features = np.concatenate((mfcc_features, zeros), axis=0)
 
 			trues = np.ones((num_frames,), dtype=bool)
