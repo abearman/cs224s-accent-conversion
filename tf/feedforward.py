@@ -29,9 +29,10 @@ class Config(object):
 		num_mfcc_coeffs = 13
 		sample_rate = 16000.0
 		num_features = max_num_frames * num_mfcc_coeffs 
-		state_size_1 = 50
-		state_size_2 = 60
-		state_size_3 = 75
+		state_size_1 = 25 
+		state_size_2 = 50
+		state_size_3 = 50
+		state_size_4 = 25
 		dropout_keep_prob = 1.0 # 0.8
 		logs_path = "tensorboard/" + strftime("%Y_%m_%d_%H_%M_%S", gmtime())
 
@@ -114,8 +115,10 @@ class ANNModel(object):
 				b2 = tf.get_variable("b2", shape=(1, self.config.state_size_2))
 				W3 = tf.get_variable("W3", shape=(self.config.state_size_2, self.config.state_size_3), initializer=xavier) 
 				b3 = tf.get_variable("b3", shape=(1, self.config.state_size_3))
-				W4 = tf.get_variable("W4", shape=(self.config.state_size_3, self.config.num_features), initializer=xavier) 
+				W4 = tf.get_variable("W4", shape=(self.config.state_size_3, self.config.state_size_4), initializer=xavier) 
 				b4 = tf.get_variable("b4", shape=(1, self.config.num_features))
+				W5 = tf.get_variable("W4", shape=(self.config.state_size4, self.config.num_features), initializer=xavier)
+        b5 = tf.get_variable("b4", shape=(1, self.config.num_features))
 
 				# [batch, max_num_frames, num_mfcc_coeffs] x [max_num-frames * num_mfcc_coeffs, state_size] = [batch, state_size1]
 				print "inputs shape: ", self.input_placeholder
@@ -130,17 +133,19 @@ class ANNModel(object):
 				h3 = tf.tanh(tf.matmul(h2, W3) + b3)
 				print "h3 shape: ", h3
 
-				# [batch, state_size3] x [state_size3, max_num_frames * num_mfcc_coeffs] = [batch, max_num_frames, num_mfcc_coeffs]
-				print "W4 shape: ", W4
-				mfcc_preds = tf.matmul(h3, W4) + b4
+				# [batch, state_size3] x [state_size3, state_size4] = [batch, state_size4]
+        h4 = tf.tanh(tf.matmul(h3, W4) + b4)
+        print "h4 shape: ", h4
+
+				# [batch, state_size4] x [state_size4, max_num_frames * num_mfcc_coeffs] = [batch, max_num_frames, num_mfcc_coeffs]
+				mfcc_preds = tf.matmul(h4, W5) + b5
 				mfcc_preds = tf.reshape(mfcc_preds, (-1, self.config.max_num_frames, self.config.num_mfcc_coeffs))
 				print "mfcc preds shape: ", mfcc_preds
 
-				#masked_preds = tf.boolean_mask(mfcc_preds, self.input_masks_placeholder)
-	
 				self.mfcc = mfcc_preds
 				return mfcc_preds 
  
+
 		def add_loss_op(self, pred):
 				"""Adds mean squared error ops to the computational graph.
 
