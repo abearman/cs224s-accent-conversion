@@ -183,8 +183,36 @@ class ANNModel(object):
 				train_op = tf.train.GradientDescentOptimizer(self.config.lr).minimize(loss)
 				return train_op
 
+		
+		def output_wave_files(self, predicted_mfccs_batch):
+				"""Outputs and saves a single batch of wavefiles from their MFCC features. 
 
-		def train_on_batch(self, sess, inputs_batch, input_masks_batch, labels_batch, label_masks_batch):
+				Args:
+					predicted_mfccs_batch: A np.ndarray (Tensorflow evaluated tensor) of shape 
+						(batch_size, max_num_frames, num_mfcc_coeffs)
+				"""
+				# Only outputting 2 wavefiles in the batch, because otherwise it takes too long
+				for i in range(min(2, predicted_mfccs_batch.shape[0])):
+					print "Converting wavefile ", i
+					predicted_mfccs_transposed = np.transpose(predicted_mfccs_batch[i,:,:])
+
+					# MFCC features need to be a numpy array of shape (num_coefficients x num_frames) in order to be passed to the invmelfcc function
+					inverted_wav_data = self.eng.invmelfcc(matlab.double(predicted_mfccs_transposed.tolist()),
+																								 self.config.sample_rate,
+																									self.config.num_mfcc_coeffs)
+
+					#self.eng.soundsc(inverted_wav_data, self.config.sample_rate, nargout=0)
+					inverted_wav_data = np.squeeze(np.array(inverted_wav_data))
+
+					# Scales the waveform to be between -1 and 1
+					maxVec = np.max(inverted_wav_data)
+					minVec = np.min(inverted_wav_data)
+					inverted_wav_data = ((inverted_wav_data - minVec) / (maxVec - minVec) - 0.5) * 2
+
+					wav.write('learned_wav' + str(i) + '.wav', self.config.sample_rate, inverted_wav_data)
+
+
+		def train_on_batch(self, sess, inputs_batch, input_masks_batch, labels_batch, label_masks_batch, should_output_wavefiles):
 				"""Perform one step of gradient descent on the provided batch of data.
 
 				Args:
@@ -193,13 +221,22 @@ class ANNModel(object):
 						input_masks_batch: np.ndarray of shape (batch_size, max_num_frames)
 						labels_batch: np.ndarray of shape (batch_size, max_num_frames, num_mfcc_coeffs)
 						label_masks_batch: np.ndarray of shape (batch_size, max_num_frames)
+						should_output_wavefiles: bool that specifies whether or not we should output wavefiles from the predicted MFCC features
 				Returns:
 						loss: loss over the batch (a scalar)
+						summary: to be used for Tensorboard
 				"""
 				feed = self.create_feed_dict(inputs_batch, input_masks_batch, 
 																		 labels_batch=labels_batch, label_masks_batch=label_masks_batch)
 				_, loss, summary = sess.run([self.train_op, self.loss, self.merged_summary_op], feed_dict=feed)
-				return loss, summary, feed
+
+				# We only evaluate the first batch in the epoch
+				if should_output_wavefiles:
+					predicted_mfccs_batch = self.mfcc.eval(session=sess, feed_dict=feed)
+					print "Predicted mfcc single batch: ", predicted_mfccs_batch.shape
+					self.output_wave_files(predicted_mfccs_batch)
+
+				return loss, summary 
 
 
 		def run_epoch(self, sess, inputs, input_masks, labels, label_masks, train_writer, step_i):
@@ -216,20 +253,26 @@ class ANNModel(object):
 										and backward pass on) 
 				Returns:
 						average_loss: scalar. Average minibatch loss of model on epoch.
+						step_i: The global number of steps taken so far (i.e., batches we've done a full forward
+										and backward pass on)
 				"""
 				n_minibatches, total_loss = 0, 0
 				for input_batch, input_masks_batch, labels_batch, label_masks_batch in \
 										get_minibatches([inputs, input_masks, labels, label_masks], self.config.batch_size):
-						n_minibatches += 1
 
-						batch_loss, summary, feed = self.train_on_batch(sess, input_batch, input_masks_batch, 
-																														labels_batch, label_masks_batch)
+						# We only evaluate and output wavefiles on the first batch of the epoch
+						should_output_wavefiles = False
+						if n_minibatches == 0: 
+							should_output_wavefiles = True 
+						batch_loss, summary = self.train_on_batch(sess, input_batch, input_masks_batch, 
+																														labels_batch, label_masks_batch, should_output_wavefiles)
 						total_loss += batch_loss
 
+						n_minibatches += 1
 						train_writer.add_summary(summary, step_i)
 						step_i += 1
 
-				return total_loss / n_minibatches, step_i, feed
+				return total_loss / n_minibatches, step_i 
 
 
 		def optimize(self, sess, inputs, input_masks, labels, label_masks):
@@ -250,30 +293,10 @@ class ANNModel(object):
 				losses = []
 				for epoch in range(self.config.n_epochs):
 						start_time = time()
-						average_loss, step_i, feed = self.run_epoch(sess, inputs, input_masks, labels, label_masks, train_writer, step_i)
+						average_loss, step_i = self.run_epoch(sess, inputs, input_masks, labels, label_masks, train_writer, step_i)
 						duration = time() - start_time
 						print 'Epoch {:}: loss = {:.2f} ({:.3f} sec)'.format(epoch, average_loss, duration)
 						losses.append(average_loss)
-
-						predicted_mfccs_batch = self.mfcc.eval(session=sess, feed_dict=feed)
-						print "predicted shape: ", predicted_mfccs_batch[0].shape
-
-						for i in range(predicted_mfccs_batch.shape[0]):
-							print "Converting wavefile ", i 
-							predicted_mfccs_transposed = np.transpose(predicted_mfccs_batch[i,:,:])
-
-							# MFCC features need to be a numpy array of shape (num_coefficients x num_frames) in order to be passed to the invmelfcc function
-							inverted_wav_data = self.eng.invmelfcc(matlab.double(predicted_mfccs_transposed.tolist()), self.config.sample_rate, self.config.num_mfcc_coeffs)
-
-							#self.eng.soundsc(inverted_wav_data, self.config.sample_rate, nargout=0)
-							inverted_wav_data = np.squeeze(np.array(inverted_wav_data))
-
-							# Scales the waveform to be between -1 and 1
-							maxVec = np.max(inverted_wav_data)
-							minVec = np.min(inverted_wav_data)
-							inverted_wav_data = ((inverted_wav_data - minVec) / (maxVec - minVec) - 0.5) * 2
-	 
-							wav.write('learned_wav' + str(i) + '.wav', self.config.sample_rate, inverted_wav_data)
 
 				return losses
 
@@ -334,7 +357,7 @@ class ANNModel(object):
 					target_mfcc_features = np.array(mfcc(target_wav_data, samplerate=target_sample_rate, numcep=self.config.num_mfcc_coeffs))
 
 					# Aligns the MFCC features matrices using FastDTW.
-					source_mfcc_features, target_mfcc_features = get_dtw_series(source_mfcc_features, target_mfcc_features)
+					#source_mfcc_features, target_mfcc_features = get_dtw_series(source_mfcc_features, target_mfcc_features)
 
 					# Pads the MFCC feature matrices (rows) to length config.max_num_frames
 					source_padded_frames, source_mask = pad_sequence(source_mfcc_features, config.max_num_frames)
