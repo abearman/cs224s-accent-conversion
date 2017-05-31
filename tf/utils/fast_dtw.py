@@ -26,8 +26,10 @@ def get_dtw_series(source_mfccs, target_mfccs):
 	source_warped_array = np.zeros( (num_warped_frames, num_coefficients) ) 
 	target_warped_array = np.zeros( (num_warped_frames, num_coefficients) )
 
+	index = 0  # Need this index to mimic the "append" function for lists
 	for src_idx, tgt_idx in path:
-		source_warped_array[src_idx,:] = source_list[src_idx]
-		target_warped_array[tgt_idx,:] = target_list[tgt_idx]
+		source_warped_array[index,:] = source_list[src_idx]
+		target_warped_array[index,:] = target_list[tgt_idx]
+		index += 1
 
 	return source_warped_array, target_warped_array
