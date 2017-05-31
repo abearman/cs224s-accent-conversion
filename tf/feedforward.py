@@ -17,6 +17,7 @@ from utils.pad_sequence import pad_sequence
 
 class Config(object):
 		"""Holds model hyperparams and data information.
+
 		The config class is used to store various hyperparameters and dataset
 		information parameters. Model objects are passed a Config() object at
 		instantiation.
@@ -41,9 +42,12 @@ class ANNModel(object):
 
 		def add_placeholders(self):
 				"""Generates placeholder variables to represent the input tensors.
+
 				These placeholders are used as inputs by the rest of the model building
 				and will be fed data during training.
+
 				Adds following nodes to the computational graph
+
 				input_placeholder: Input placeholder tensor of shape
 													 (batch_size, max_num_frames, num_mfcc_coeffs), type tf.float32
 				labels_placeholder: Labels placeholder tensor of shape
@@ -52,6 +56,7 @@ class ANNModel(object):
 																 (batch_size, max_num_frames), type tf.bool
 				labels_masks_placeholder: Labels masks placeholder tensor of shape
 																	(batch_size, max_num_frames), type tf.bool
+
 				Add these placeholders to self as the instance variables
 						self.input_placeholder
 						self.labels_placeholder
@@ -66,6 +71,7 @@ class ANNModel(object):
 
 		def create_feed_dict(self, inputs_batch, input_masks_batch, labels_batch=None, label_masks_batch=None):
 				"""Creates the feed_dict for training the given step.
+
 				A feed_dict takes the form of:
 				feed_dict = {
 								<placeholder>: <tensor of values to be passed for placeholder>,
@@ -97,6 +103,7 @@ class ANNModel(object):
 				Implements a stacked, denoising autoencoder. 
 				Autoencoder learns two mappings: (1) Encoder: input ==> hidden layer, and (2) Decoder: hidden layer ==> output layer
 				
+
 				Returns:
 						pred: A tensor of shape (batch_size, n_classes)
 				"""
@@ -110,8 +117,8 @@ class ANNModel(object):
 				b3 = tf.get_variable("b3", shape=(1, self.config.state_size_3))
 				W4 = tf.get_variable("W4", shape=(self.config.state_size_3, self.config.state_size_4), initializer=xavier) 
 				b4 = tf.get_variable("b4", shape=(1, self.config.num_features))
-				W5 = tf.get_variable("W4", shape=(self.config.state_size4, self.config.num_features), initializer=xavier)
-        b5 = tf.get_variable("b4", shape=(1, self.config.num_features))
+				W5 = tf.get_variable("W5", shape=(self.config.state_size_4, self.config.num_features), initializer=xavier)
+				b5 = tf.get_variable("b5", shape=(1, self.config.num_features))
 
 				# [batch, max_num_frames, num_mfcc_coeffs] x [max_num-frames * num_mfcc_coeffs, state_size] = [batch, state_size1]
 				print "inputs shape: ", self.input_placeholder
@@ -127,8 +134,8 @@ class ANNModel(object):
 				print "h3 shape: ", h3
 
 				# [batch, state_size3] x [state_size3, state_size4] = [batch, state_size4]
-        h4 = tf.tanh(tf.matmul(h3, W4) + b4)
-        print "h4 shape: ", h4
+				h4 = tf.tanh(tf.matmul(h3, W4) + b4)
+				print "h4 shape: ", h4
 
 				# [batch, state_size4] x [state_size4, max_num_frames * num_mfcc_coeffs] = [batch, max_num_frames, num_mfcc_coeffs]
 				mfcc_preds = tf.matmul(h4, W5) + b5
@@ -141,6 +148,7 @@ class ANNModel(object):
 
 		def add_loss_op(self, pred):
 				"""Adds mean squared error ops to the computational graph.
+
 				Args:
 						pred: A tensor of shape (batch_size, max_num_frames, n_mfcc_features)
 				Returns:
@@ -155,13 +163,18 @@ class ANNModel(object):
 
 		def add_training_op(self, loss):
 				"""Sets up the training Ops.
+
 				Creates an optimizer and applies the gradients to all trainable variables.
 				The Op returned by this function is what must be passed to the
 				`sess.run()` call to cause the model to train. See
+
 				https://www.tensorflow.org/versions/r0.7/api_docs/python/train.html#Optimizer
+
 				for more information.
+
 				Hint: Use tf.train.GradientDescentOptimizer to get an optimizer object.
 										Calling optimizer.minimize() will return a train_op object.
+
 				Args:
 						loss: Loss tensor, from cross_entropy_loss.
 				Returns:
@@ -173,6 +186,7 @@ class ANNModel(object):
 
 		def train_on_batch(self, sess, inputs_batch, input_masks_batch, labels_batch, label_masks_batch):
 				"""Perform one step of gradient descent on the provided batch of data.
+
 				Args:
 						sess: tf.Session()
 						input_batch: np.ndarray of shape (batch_size, max_num_frames, num_mfcc_coeffs)
@@ -190,6 +204,7 @@ class ANNModel(object):
 
 		def run_epoch(self, sess, inputs, input_masks, labels, label_masks, train_writer, step_i):
 				"""Runs an epoch of training.
+
 				Args:
 						sess: tf.Session() object
 						inputs: np.ndarray of shape (num_examples, max_num_frames, num_mfcc_coeffs) 
@@ -219,6 +234,7 @@ class ANNModel(object):
 
 		def optimize(self, sess, inputs, input_masks, labels, label_masks):
 				"""Fit model on provided data.
+
 				Args:
 						sess: tf.Session()
 						inputs: np.ndarray of shape (num_examples, max_num_frames, num_mfcc_coeffs) 
@@ -276,6 +292,7 @@ class ANNModel(object):
 
 		def __init__(self, config):
 				"""Initializes the model.
+
 				Args:
 						config: A model configuration object of type Config
 				"""
@@ -369,3 +386,4 @@ def main():
 
 if __name__ == "__main__":
 		main()
+
