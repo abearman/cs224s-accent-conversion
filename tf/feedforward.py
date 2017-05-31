@@ -22,7 +22,7 @@ class Config(object):
 		information parameters. Model objects are passed a Config() object at
 		instantiation.
 		"""
-		batch_size = 16 
+		batch_size = 10
 		n_epochs = 1000
 		lr = 1e-2
 		max_num_frames = 706	# This is the maximum length of any warped time series in the dataset 
@@ -194,12 +194,13 @@ class ANNModel(object):
 				# Only outputting 2 wavefiles in the batch, because otherwise it takes too long
 				for i in range(min(2, predicted_mfccs_batch.shape[0])):
 					print "Converting wavefile ", i
-					predicted_mfccs_transposed = np.transpose(predicted_mfccs_batch[i,:,:])
+					predicted_mfccs = predicted_mfccs_batch[i,:,:]
+					predicted_mfccs_transposed = np.transpose(predicted_mfccs)
 
 					# MFCC features need to be a numpy array of shape (num_coefficients x num_frames) in order to be passed to the invmelfcc function
 					inverted_wav_data = self.eng.invmelfcc(matlab.double(predicted_mfccs_transposed.tolist()),
 																								 self.config.sample_rate,
-																									self.config.num_mfcc_coeffs)
+																								 self.config.num_mfcc_coeffs)
 
 					#self.eng.soundsc(inverted_wav_data, self.config.sample_rate, nargout=0)
 					inverted_wav_data = np.squeeze(np.array(inverted_wav_data))
@@ -244,10 +245,10 @@ class ANNModel(object):
 
 				Args:
 						sess: tf.Session() object
-						inputs: np.ndarray of shape (num_examples, max_num_frames, num_mfcc_coeffs) 
-						input_masks: boolean np.ndarray of shape (num_examples, max_num_frames)
-						labels: np.ndarray of shape (num_examples, max_num_frames, num_mfcc_coeffs)
-						label_masks: boolean np.ndarray of shape (num_examples, max_num_frames)
+						inputs: A list of length num_examples with float np.ndarray entries of shape (max_num_frames, num_mfcc_coeffs) 
+						input_masks: A list of length num_examples with boolean np.darray entries of shape (max_num_frames,)
+						labels: A list of length num_examples with float np.ndarray entries of shape (max_num_frames, num_mfcc_coeffs)	
+						label_masks: A list of length num_examples with boolean np.darray entries of shape (max_num_frames,)
 						train_writer: a tf.summary.FileWriter object
 						step_i: The global number of steps taken so far (i.e., batches we've done a full forward
 										and backward pass on) 
@@ -280,17 +281,24 @@ class ANNModel(object):
 
 				Args:
 						sess: tf.Session()
-						inputs: np.ndarray of shape (num_examples, max_num_frames, num_mfcc_coeffs) 
-						input_masks: boolean np.ndarray of shape (num_examples, max_num_frames)
-						labels: np.ndarray of shape (num_examples, max_num_frames, n_mfcc_features)
-						label_masks: boolean np.ndarray of shape (num_examples, max_num_frames)
+						inputs: A list of length num_examples with float np.ndarray entries of shape (max_num_frames, num_mfcc_coeffs) 
+						input_masks: A list of length num_examples with boolean np.darray entries of shape (max_num_frames,)
+						labels: A list of length num_examples with float np.ndarray entries of shape (max_num_frames, num_mfcc_coeffs)	
+						label_masks: A list of length num_examples with boolean np.darray entries of shape (max_num_frames,) 
 				Returns:
-						losses: list of loss per epoch
+						losses: list of losses per epoch
 				"""
 				train_writer = tf.summary.FileWriter(self.config.logs_path + '/train', sess.graph)
 				step_i = 0
 
 				losses = []
+
+				# Overfit on tiny dataset
+				inputs = inputs[0:20]
+				input_masks = input_masks[0:20] 
+				labels = labels[0:20] 
+				label_masks = label_masks[0:20]
+
 				for epoch in range(self.config.n_epochs):
 						start_time = time()
 						average_loss, step_i = self.run_epoch(sess, inputs, input_masks, labels, label_masks, train_writer, step_i)
@@ -349,9 +357,17 @@ class ANNModel(object):
 				
 				SOURCE_DIR = '../data/cmu_arctic/us-english-male-bdl/wav/'
 				TARGET_DIR = '../data/cmu_arctic/scottish-english-male-awb/wav/'
+				index = 0
 				for source_fname, target_fname in zip(os.listdir(SOURCE_DIR), os.listdir(TARGET_DIR)):
 					(source_sample_rate, source_wav_data) = wav.read(SOURCE_DIR + source_fname) 
 					(target_sample_rate, target_wav_data) = wav.read(TARGET_DIR + target_fname)
+
+					#if index < 20:
+						#wav.write('source' + str(index) + '.wav', self.config.sample_rate, source_wav_data)
+						#wav.write('target' + str(index) + '.wav', self.config.sample_rate, target_wav_data)
+						#self.eng.soundsc(matlab.double(source_wav_data.tolist()), self.config.sample_rate, nargout=0)
+						#self.eng.soundsc(matlab.double(target_wav_data.tolist()), self.config.sample_rate, nargout=0)
+					#index += 1
 
 					source_mfcc_features = np.array(mfcc(source_wav_data, samplerate=source_sample_rate, numcep=self.config.num_mfcc_coeffs))
 					target_mfcc_features = np.array(mfcc(target_wav_data, samplerate=target_sample_rate, numcep=self.config.num_mfcc_coeffs))
