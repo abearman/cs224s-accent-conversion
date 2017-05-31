@@ -22,8 +22,8 @@ class Config(object):
 		information parameters. Model objects are passed a Config() object at
 		instantiation.
 		"""
-		batch_size = 32 
-		n_epochs = 50
+		batch_size = 16 
+		n_epochs = 1000
 		lr = 1e-3
 		max_num_frames = 706	# This is the maximum length of any warped time series in the dataset 
 		num_mfcc_coeffs = 13
@@ -149,7 +149,9 @@ class ANNModel(object):
 				Returns:
 						loss: A 0-d tensor (scalar)
 				"""
-				loss = tf.reduce_mean(tf.squared_difference(pred, self.labels_placeholder))
+				unmasked_loss = tf.squared_difference(pred, self.labels_placeholder)
+				loss_masked = tf.boolean_mask(unmasked_loss, self.label_masks_placeholder)
+				loss = tf.reduce_mean(loss_masked)
 				return loss 
 
 
@@ -248,6 +250,8 @@ class ANNModel(object):
 						losses.append(average_loss)
 
 						predicted_mfccs_batch = self.mfcc.eval(session=sess, feed_dict=feed)
+						print "predicted shape: ", predicted_mfccs_batch[0].shape
+
 						for i in range(predicted_mfccs_batch.shape[0]):
 							predicted_mfccs = predicted_mfccs_batch[i,:]
 
@@ -255,7 +259,7 @@ class ANNModel(object):
 																										 self.config.sample_rate, 
 																										 self.config.num_mfcc_coeffs)
 
-							self.eng.soundsc(inverted_wav_data, self.config.sample_rate, nargout=0)
+							#self.eng.soundsc(inverted_wav_data, self.config.sample_rate, nargout=0)
 							inverted_wav_data = np.squeeze(np.array(inverted_wav_data))
 
 							# Scales the waveform to be between -1 and 1
