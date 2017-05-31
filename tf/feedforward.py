@@ -357,7 +357,7 @@ class ANNModel(object):
 					target_mfcc_features = np.array(mfcc(target_wav_data, samplerate=target_sample_rate, numcep=self.config.num_mfcc_coeffs))
 
 					# Aligns the MFCC features matrices using FastDTW.
-					#source_mfcc_features, target_mfcc_features = get_dtw_series(source_mfcc_features, target_mfcc_features)
+					source_mfcc_features, target_mfcc_features = get_dtw_series(source_mfcc_features, target_mfcc_features)
 
 					# Pads the MFCC feature matrices (rows) to length config.max_num_frames
 					source_padded_frames, source_mask = pad_sequence(source_mfcc_features, config.max_num_frames)
