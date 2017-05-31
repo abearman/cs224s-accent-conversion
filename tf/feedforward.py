@@ -116,7 +116,7 @@ class ANNModel(object):
 				W3 = tf.get_variable("W3", shape=(self.config.state_size_2, self.config.state_size_3), initializer=xavier) 
 				b3 = tf.get_variable("b3", shape=(1, self.config.state_size_3))
 				W4 = tf.get_variable("W4", shape=(self.config.state_size_3, self.config.state_size_4), initializer=xavier) 
-				b4 = tf.get_variable("b4", shape=(1, self.config.num_features))
+				b4 = tf.get_variable("b4", shape=(1, self.config.state_size_4))
 				W5 = tf.get_variable("W5", shape=(self.config.state_size_4, self.config.num_features), initializer=xavier)
 				b5 = tf.get_variable("b5", shape=(1, self.config.num_features))
 
