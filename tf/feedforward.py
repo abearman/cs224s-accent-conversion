@@ -22,7 +22,7 @@ class Config(object):
 		information parameters. Model objects are passed a Config() object at
 		instantiation.
 		"""
-		batch_size = 1
+		batch_size = 5
 		n_epochs = 10000
 		lr = 1e-2
 		momentum = 0.3
@@ -37,7 +37,7 @@ class Config(object):
 
 		num_features = max_num_frames * num_mfcc_coeffs 
 		state_size_1 = 50 
-		state_size_2 = 50
+		state_size_2 = 50 
 		#state_size_3 = 50
 		#state_size_4 = 25
 		dropout_keep_prob = 1.0 # 0.8
@@ -117,11 +117,11 @@ class ANNModel(object):
 
 				xavier = tf.contrib.layers.xavier_initializer()
 				W1 = tf.get_variable("W1", shape=(self.config.num_mfcc_coeffs, self.config.state_size_1), initializer=xavier) 
-				b1 = tf.get_variable("b1", shape=(1, self.config.state_size_1))
+				#b1 = tf.get_variable("b1", shape=(1, self.config.state_size_1))
 				W2 = tf.get_variable("W2", shape=(self.config.state_size_1, self.config.state_size_2), initializer=xavier) 
-				b2 = tf.get_variable("b2", shape=(1, self.config.state_size_2))
+				#b2 = tf.get_variable("b2", shape=(1, self.config.state_size_2))
 				W3 = tf.get_variable("W3", shape=(self.config.state_size_2, self.config.num_mfcc_coeffs), initializer=xavier) 
-				b3 = tf.get_variable("b3", shape=(1, self.config.num_mfcc_coeffs))
+				#b3 = tf.get_variable("b3", shape=(1, self.config.num_mfcc_coeffs))
 				#W4 = tf.get_variable("W4", shape=(self.config.state_size_3, self.config.num_features), initializer=xavier) 
 				#b4 = tf.get_variable("b4", shape=(1, self.config.num_features))
 				#W5 = tf.get_variable("W5", shape=(self.config.state_size_4, self.config.num_features), initializer=xavier)
@@ -129,15 +129,15 @@ class ANNModel(object):
 
 				# [batch, max_num_frames, num_mfcc_coeffs] x [num_mfcc_coeffs, state_size1] = [batch, max_num_frames, state_size1]
 				print "inputs shape: ", self.input_placeholder
-				h1 = tf.tanh(batch_multiply_by_matrix(batch=self.input_placeholder, matrix=W1) + b1)
+				h1 = tf.tanh(batch_multiply_by_matrix(batch=self.input_placeholder, matrix=W1))
 				print "h1 shape: ", h1
 
 				# [batch, max_num_frames, state_size1] x [state_size1, state_size2] = [batch, max_num_frames, state_size2]
-				h2 = tf.tanh(batch_multiply_by_matrix(batch=h1, matrix=W2) + b2)
+				h2 = tf.tanh(batch_multiply_by_matrix(batch=h1, matrix=W2))
 				print "h2 shape: ", h2
 				
 				# [batch, max_num_frames, state_size2] x [state_size2, num_mfcc_coeffs] = [batch, max_num_frames, num_mfcc_coeffs]
-				mfcc_preds = batch_multiply_by_matrix(batch=h2, matrix=W3) + b3
+				mfcc_preds = batch_multiply_by_matrix(batch=h2, matrix=W3) 
 				print "mfcc preds shape: ", mfcc_preds
 
 				self.mfcc = mfcc_preds
@@ -196,7 +196,7 @@ class ANNModel(object):
 				for i in range(min(2, predicted_mfccs_batch.shape[0])):
 					print "Converting wavefile ", i
 					predicted_mfccs = predicted_mfccs_batch[i,:,:]
-					self.output_wave_file(predicted_mfccs)	
+					self.output_wave_file(predicted_mfccs, filename='learned_wav' + str(i))	
 
 
 		def output_wave_file(self, predicted_mfccs, filename='learned_wav'):
@@ -214,7 +214,7 @@ class ANNModel(object):
 																							 self.config.num_mfcc_coeffs,
 																							 float(self.config.num_filters), self.config.window_len, self.config.window_step)
 
-				#self.eng.soundsc(inverted_wav_data, self.config.sample_rate, nargout=0)
+				self.eng.soundsc(inverted_wav_data, self.config.sample_rate, nargout=0)
 				inverted_wav_data = np.squeeze(np.array(inverted_wav_data))
 
 				# Scales the waveform to be between -1 and 1
@@ -246,7 +246,9 @@ class ANNModel(object):
 				# We only evaluate the first batch in the epoch
 				if should_output_wavefiles:
 					predicted_mfccs_batch = self.mfcc.eval(session=sess, feed_dict=feed)
-					print "Predicted mfcc single batch: ", predicted_mfccs_batch.shape
+					true_target_mfccs = self.labels_placeholder.eval(session=sess, feed_dict=feed)
+					print "Predicted mfcc: ", predicted_mfccs_batch[0]
+					print "Target mfcc: ", true_target_mfccs[0]
 					self.output_wave_files(predicted_mfccs_batch)
 
 				return loss, summary 
@@ -307,16 +309,16 @@ class ANNModel(object):
 				losses = []
 
 				# Overfit on tiny dataset
-				inputs = inputs[0:20]
-				input_masks = input_masks[0:20] 
-				labels = labels[0:20] 
-				label_masks = label_masks[0:20]
+				#inputs = inputs[0:20]
+				#input_masks = input_masks[0:20] 
+				#labels = labels[0:20] 
+				#label_masks = label_masks[0:20]
 
 				for epoch in range(self.config.n_epochs):
 						start_time = time()
 
 						should_output_wavefiles_epoch = False
-						if epoch % 100 == 0:
+						if epoch % 50 == 0:
 							should_output_wavefiles_epoch = True
 
 						average_loss, step_i = self.run_epoch(sess, inputs, input_masks, labels, label_masks, train_writer, step_i, 
@@ -378,6 +380,10 @@ class ANNModel(object):
 				TARGET_DIR = '../data/cmu_arctic/us-english-male-bdl/wav/'
 				index = 0
 				for source_fname, target_fname in zip(os.listdir(SOURCE_DIR), os.listdir(TARGET_DIR)):
+					if index >= 20:
+						break
+					index += 1
+
 					(source_sample_rate, source_wav_data) = wav.read(SOURCE_DIR + source_fname) 
 					(target_sample_rate, target_wav_data) = wav.read(TARGET_DIR + target_fname)
 
@@ -411,7 +417,7 @@ class ANNModel(object):
 
 
 def main():
-	"""Main entry method for this file."""
+	"""Main entry met`hod for this file."""
 	config = Config()
 
 	# Tell TensorFlow that the model will be built into the default Graph.
