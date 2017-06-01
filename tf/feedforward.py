@@ -22,9 +22,10 @@ class Config(object):
 		information parameters. Model objects are passed a Config() object at
 		instantiation.
 		"""
-		batch_size = 10
+		batch_size = 1
 		n_epochs = 10000
-		lr = 1e-3
+		lr = 1e-2
+		momentum = 0.3
 
 		max_num_frames = 1220  # This is the maximum length of any warped time series in the dataset 
 
@@ -180,7 +181,7 @@ class ANNModel(object):
 				Returns:
 						train_op: The Op for training.
 				"""
-				train_op = tf.train.GradientDescentOptimizer(self.config.lr).minimize(loss)
+				train_op = tf.train.MomentumOptimizer(self.config.lr, self.config.momentum).minimize(loss)
 				return train_op
 
 		
@@ -243,15 +244,15 @@ class ANNModel(object):
 				_, loss, summary = sess.run([self.train_op, self.loss, self.merged_summary_op], feed_dict=feed)
 
 				# We only evaluate the first batch in the epoch
-				#if should_output_wavefiles:
-				#	predicted_mfccs_batch = self.mfcc.eval(session=sess, feed_dict=feed)
-				#	print "Predicted mfcc single batch: ", predicted_mfccs_batch.shape
-				#	self.output_wave_files(predicted_mfccs_batch)
+				if should_output_wavefiles:
+					predicted_mfccs_batch = self.mfcc.eval(session=sess, feed_dict=feed)
+					print "Predicted mfcc single batch: ", predicted_mfccs_batch.shape
+					self.output_wave_files(predicted_mfccs_batch)
 
 				return loss, summary 
 
 
-		def run_epoch(self, sess, inputs, input_masks, labels, label_masks, train_writer, step_i):
+		def run_epoch(self, sess, inputs, input_masks, labels, label_masks, train_writer, step_i, should_output_wavefiles):
 				"""Runs an epoch of training.
 
 				Args:
@@ -273,11 +274,12 @@ class ANNModel(object):
 										get_minibatches([inputs, input_masks, labels, label_masks], self.config.batch_size):
 
 						# We only evaluate and output wavefiles on the first batch of the epoch
-						should_output_wavefiles = False
+						should_output_wavefiles_batch = False
 						if n_minibatches == 0: 
-							should_output_wavefiles = True 
+							should_output_wavefiles_batch = True 
 						batch_loss, summary = self.train_on_batch(sess, input_batch, input_masks_batch, 
-																														labels_batch, label_masks_batch, should_output_wavefiles)
+																														labels_batch, label_masks_batch, 
+																														should_output_wavefiles and should_output_wavefiles_batch)
 						total_loss += batch_loss
 
 						n_minibatches += 1
@@ -312,7 +314,13 @@ class ANNModel(object):
 
 				for epoch in range(self.config.n_epochs):
 						start_time = time()
-						average_loss, step_i = self.run_epoch(sess, inputs, input_masks, labels, label_masks, train_writer, step_i)
+
+						should_output_wavefiles_epoch = False
+						if epoch % 100 == 0:
+							should_output_wavefiles_epoch = True
+
+						average_loss, step_i = self.run_epoch(sess, inputs, input_masks, labels, label_masks, train_writer, step_i, 
+																									should_output_wavefiles_epoch)
 						duration = time() - start_time
 						print 'Epoch {:}: loss = {:.2f} ({:.3f} sec)'.format(epoch, average_loss, duration)
 						losses.append(average_loss)
