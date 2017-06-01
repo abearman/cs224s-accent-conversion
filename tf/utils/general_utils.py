@@ -4,6 +4,21 @@ import numpy as np
 import tensorflow as tf
 
 
+def batch_multiply_by_matrix(matrix=None, batch=None):
+	# (batch_sz, n, m) x (m, c) ==> 
+	# (batch_sz*n, m) x (m, c) ==>
+	# = (batch_sz*n, c) ==>
+	# Reshape: (batch_sz, n, c)
+	n = batch.get_shape().as_list()[1]
+	m = batch.get_shape().as_list()[2]
+	c = matrix.get_shape().as_list()[1]
+	batch = tf.reshape(batch, [-1, m])
+	ret = tf.matmul(batch, matrix)
+	ret = tf.reshape(ret, [-1, n, c])
+	return ret
+
+
+"""
 def batch_multiply_by_matrix(matrix=None, batch=None, matrixByBatch=False):
 	ret = None
 	if matrixByBatch:
@@ -20,7 +35,7 @@ def batch_multiply_by_matrix(matrix=None, batch=None, matrixByBatch=False):
 		ret = tf.matmul(batch, matrix)
 		ret = tf.reshape(ret, [-1, c])
 	return ret
-
+"""
 
 def get_minibatches(data, minibatch_size, shuffle=True):
 		"""

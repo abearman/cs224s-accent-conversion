@@ -10,7 +10,7 @@ from python_speech_features import mfcc
 import tensorflow as tf
 from tensorflow.python.ops.nn import dynamic_rnn
 
-from utils.general_utils import get_minibatches, batch_multiply_by_matrix
+from utils.general_utils import get_minibatches, batch_multiply_by_matrix 
 from utils.fast_dtw import get_dtw_series 
 from utils.pad_sequence import pad_sequence
 
@@ -23,16 +23,22 @@ class Config(object):
 		instantiation.
 		"""
 		batch_size = 10
-		n_epochs = 1000
-		lr = 1e-2
-		max_num_frames = 706	# This is the maximum length of any warped time series in the dataset 
-		num_mfcc_coeffs = 13
+		n_epochs = 10000
+		lr = 1e-3
+
+		max_num_frames = 1220  # This is the maximum length of any warped time series in the dataset 
+
+		num_mfcc_coeffs = 25
 		sample_rate = 16000.0
+		num_filters = 100
+		window_len = 0.005	 # 5 ms
+		window_step = 0.005  # 5 ms	
+
 		num_features = max_num_frames * num_mfcc_coeffs 
-		state_size_1 = 25 
+		state_size_1 = 50 
 		state_size_2 = 50
-		state_size_3 = 50
-		state_size_4 = 25
+		#state_size_3 = 50
+		#state_size_4 = 25
 		dropout_keep_prob = 1.0 # 0.8
 		logs_path = "tensorboard/" + strftime("%Y_%m_%d_%H_%M_%S", gmtime())
 
@@ -109,37 +115,28 @@ class ANNModel(object):
 				"""
 
 				xavier = tf.contrib.layers.xavier_initializer()
-				W1 = tf.get_variable("W1", shape=(self.config.num_features, self.config.state_size_1), initializer=xavier) 
+				W1 = tf.get_variable("W1", shape=(self.config.num_mfcc_coeffs, self.config.state_size_1), initializer=xavier) 
 				b1 = tf.get_variable("b1", shape=(1, self.config.state_size_1))
 				W2 = tf.get_variable("W2", shape=(self.config.state_size_1, self.config.state_size_2), initializer=xavier) 
 				b2 = tf.get_variable("b2", shape=(1, self.config.state_size_2))
-				W3 = tf.get_variable("W3", shape=(self.config.state_size_2, self.config.state_size_3), initializer=xavier) 
-				b3 = tf.get_variable("b3", shape=(1, self.config.state_size_3))
-				W4 = tf.get_variable("W4", shape=(self.config.state_size_3, self.config.state_size_4), initializer=xavier) 
-				b4 = tf.get_variable("b4", shape=(1, self.config.state_size_4))
-				W5 = tf.get_variable("W5", shape=(self.config.state_size_4, self.config.num_features), initializer=xavier)
-				b5 = tf.get_variable("b5", shape=(1, self.config.num_features))
+				W3 = tf.get_variable("W3", shape=(self.config.state_size_2, self.config.num_mfcc_coeffs), initializer=xavier) 
+				b3 = tf.get_variable("b3", shape=(1, self.config.num_mfcc_coeffs))
+				#W4 = tf.get_variable("W4", shape=(self.config.state_size_3, self.config.num_features), initializer=xavier) 
+				#b4 = tf.get_variable("b4", shape=(1, self.config.num_features))
+				#W5 = tf.get_variable("W5", shape=(self.config.state_size_4, self.config.num_features), initializer=xavier)
+				#b5 = tf.get_variable("b5", shape=(1, self.config.num_features))
 
-				# [batch, max_num_frames, num_mfcc_coeffs] x [max_num-frames * num_mfcc_coeffs, state_size] = [batch, state_size1]
+				# [batch, max_num_frames, num_mfcc_coeffs] x [num_mfcc_coeffs, state_size1] = [batch, max_num_frames, state_size1]
 				print "inputs shape: ", self.input_placeholder
-				h1 = batch_multiply_by_matrix(batch=self.input_placeholder, matrix=W1) + b1
+				h1 = tf.tanh(batch_multiply_by_matrix(batch=self.input_placeholder, matrix=W1) + b1)
 				print "h1 shape: ", h1
 
-				# [batch, state_size1] x [state_size1, state_size2] = [batch, state_size2]
-				h2 = tf.tanh(tf.matmul(h1, W2) + b2)
+				# [batch, max_num_frames, state_size1] x [state_size1, state_size2] = [batch, max_num_frames, state_size2]
+				h2 = tf.tanh(batch_multiply_by_matrix(batch=h1, matrix=W2) + b2)
 				print "h2 shape: ", h2
 				
-				# [batch, state_size2] x [state_size2, state_size3] = [batch, state_size3]
-				h3 = tf.tanh(tf.matmul(h2, W3) + b3)
-				print "h3 shape: ", h3
-
-				# [batch, state_size3] x [state_size3, state_size4] = [batch, state_size4]
-				h4 = tf.tanh(tf.matmul(h3, W4) + b4)
-				print "h4 shape: ", h4
-
-				# [batch, state_size4] x [state_size4, max_num_frames * num_mfcc_coeffs] = [batch, max_num_frames, num_mfcc_coeffs]
-				mfcc_preds = tf.matmul(h4, W5) + b5
-				mfcc_preds = tf.reshape(mfcc_preds, (-1, self.config.max_num_frames, self.config.num_mfcc_coeffs))
+				# [batch, max_num_frames, state_size2] x [state_size2, num_mfcc_coeffs] = [batch, max_num_frames, num_mfcc_coeffs]
+				mfcc_preds = batch_multiply_by_matrix(batch=h2, matrix=W3) + b3
 				print "mfcc preds shape: ", mfcc_preds
 
 				self.mfcc = mfcc_preds
@@ -155,7 +152,10 @@ class ANNModel(object):
 						loss: A 0-d tensor (scalar)
 				"""
 				#unmasked_loss = tf.squared_difference(pred, self.labels_placeholder)
-				loss = tf.reduce_mean( tf.squared_difference(pred, self.labels_placeholder))
+				loss = tf.losses.mean_squared_error(pred, self.labels_placeholder) 
+				print "loss before reduction: ", loss
+				loss = tf.reduce_mean(loss)
+				#loss = tf.reduce_mean( tf.squared_difference(pred, self.labels_placeholder))
 				#loss_masked = tf.boolean_mask(unmasked_loss, self.label_masks_placeholder)
 				#loss = tf.reduce_mean(loss_masked)
 				return loss 
@@ -195,22 +195,33 @@ class ANNModel(object):
 				for i in range(min(2, predicted_mfccs_batch.shape[0])):
 					print "Converting wavefile ", i
 					predicted_mfccs = predicted_mfccs_batch[i,:,:]
-					predicted_mfccs_transposed = np.transpose(predicted_mfccs)
+					self.output_wave_file(predicted_mfccs)	
 
-					# MFCC features need to be a numpy array of shape (num_coefficients x num_frames) in order to be passed to the invmelfcc function
-					inverted_wav_data = self.eng.invmelfcc(matlab.double(predicted_mfccs_transposed.tolist()),
-																								 self.config.sample_rate,
-																								 self.config.num_mfcc_coeffs)
 
-					#self.eng.soundsc(inverted_wav_data, self.config.sample_rate, nargout=0)
-					inverted_wav_data = np.squeeze(np.array(inverted_wav_data))
+		def output_wave_file(self, predicted_mfccs, filename='learned_wav'):
+				"""Outputs and saves a single wavefile from its MFCC features. 
 
-					# Scales the waveform to be between -1 and 1
-					maxVec = np.max(inverted_wav_data)
-					minVec = np.min(inverted_wav_data)
-					inverted_wav_data = ((inverted_wav_data - minVec) / (maxVec - minVec) - 0.5) * 2
+				Args:
+					predicted_mfccs: A np.ndarray (Tensorflow evaluated tensor) of shape 
+						(max_num_frames, num_mfcc_coeffs)
+				"""
+				predicted_mfccs_transposed = np.transpose(predicted_mfccs)
 
-					wav.write('learned_wav' + str(i) + '.wav', self.config.sample_rate, inverted_wav_data)
+				# MFCC features need to be a numpy array of shape (num_coefficients x num_frames) in order to be passed to the invmelfcc function
+				inverted_wav_data = self.eng.invmelfcc(matlab.double(predicted_mfccs_transposed.tolist()),
+																							 self.config.sample_rate,
+																							 self.config.num_mfcc_coeffs,
+																							 float(self.config.num_filters), self.config.window_len, self.config.window_step)
+
+				#self.eng.soundsc(inverted_wav_data, self.config.sample_rate, nargout=0)
+				inverted_wav_data = np.squeeze(np.array(inverted_wav_data))
+
+				# Scales the waveform to be between -1 and 1
+				maxVec = np.max(inverted_wav_data)
+				minVec = np.min(inverted_wav_data)
+				inverted_wav_data = ((inverted_wav_data - minVec) / (maxVec - minVec) - 0.5) * 2
+
+				wav.write(filename + '.wav', self.config.sample_rate, inverted_wav_data)
 
 
 		def train_on_batch(self, sess, inputs_batch, input_masks_batch, labels_batch, label_masks_batch, should_output_wavefiles):
@@ -232,10 +243,10 @@ class ANNModel(object):
 				_, loss, summary = sess.run([self.train_op, self.loss, self.merged_summary_op], feed_dict=feed)
 
 				# We only evaluate the first batch in the epoch
-				if should_output_wavefiles:
-					predicted_mfccs_batch = self.mfcc.eval(session=sess, feed_dict=feed)
-					print "Predicted mfcc single batch: ", predicted_mfccs_batch.shape
-					self.output_wave_files(predicted_mfccs_batch)
+				#if should_output_wavefiles:
+				#	predicted_mfccs_batch = self.mfcc.eval(session=sess, feed_dict=feed)
+				#	print "Predicted mfcc single batch: ", predicted_mfccs_batch.shape
+				#	self.output_wave_files(predicted_mfccs_batch)
 
 				return loss, summary 
 
@@ -355,22 +366,17 @@ class ANNModel(object):
 				input_masks = []
 				label_masks = []
 				
-				SOURCE_DIR = '../data/cmu_arctic/us-english-male-bdl/wav/'
-				TARGET_DIR = '../data/cmu_arctic/scottish-english-male-awb/wav/'
+				SOURCE_DIR = '../data/cmu_arctic/us-english-female-slt/wav/'	
+				TARGET_DIR = '../data/cmu_arctic/us-english-male-bdl/wav/'
 				index = 0
 				for source_fname, target_fname in zip(os.listdir(SOURCE_DIR), os.listdir(TARGET_DIR)):
 					(source_sample_rate, source_wav_data) = wav.read(SOURCE_DIR + source_fname) 
 					(target_sample_rate, target_wav_data) = wav.read(TARGET_DIR + target_fname)
 
-					#if index < 20:
-						#wav.write('source' + str(index) + '.wav', self.config.sample_rate, source_wav_data)
-						#wav.write('target' + str(index) + '.wav', self.config.sample_rate, target_wav_data)
-						#self.eng.soundsc(matlab.double(source_wav_data.tolist()), self.config.sample_rate, nargout=0)
-						#self.eng.soundsc(matlab.double(target_wav_data.tolist()), self.config.sample_rate, nargout=0)
-					#index += 1
-
-					source_mfcc_features = np.array(mfcc(source_wav_data, samplerate=source_sample_rate, numcep=self.config.num_mfcc_coeffs))
-					target_mfcc_features = np.array(mfcc(target_wav_data, samplerate=target_sample_rate, numcep=self.config.num_mfcc_coeffs))
+					source_mfcc_features = np.array(mfcc(source_wav_data, samplerate=source_sample_rate, numcep=self.config.num_mfcc_coeffs,
+																							 nfilt=self.config.num_filters, winlen=self.config.window_len, winstep=self.config.window_step))
+					target_mfcc_features = np.array(mfcc(target_wav_data, samplerate=target_sample_rate, numcep=self.config.num_mfcc_coeffs,
+																							 nfilt=self.config.num_filters, winlen=self.config.window_len, winstep=self.config.window_step))
 
 					# Aligns the MFCC features matrices using FastDTW.
 					source_mfcc_features, target_mfcc_features = get_dtw_series(source_mfcc_features, target_mfcc_features)
@@ -379,17 +385,19 @@ class ANNModel(object):
 					source_padded_frames, source_mask = pad_sequence(source_mfcc_features, config.max_num_frames)
 					target_padded_frames, target_mask = pad_sequence(target_mfcc_features, config.max_num_frames)
 
+					#if index < 20:
+					#	self.output_wave_file(source_padded_frames, filename='src' + str(index))
+					#	self.output_wave_file(target_padded_frames, filename='tgt' + str(index))
+						#wav.write('source' + str(index) + '.wav', self.config.sample_rate, source_wav_data)
+						#wav.write('target' + str(index) + '.wav', self.config.sample_rate, target_wav_data)
+						#self.eng.soundsc(matlab.double(source_wav_data.tolist()), self.config.sample_rate, nargout=0)
+						#self.eng.soundsc(matlab.double(target_wav_data.tolist()), self.config.sample_rate, nargout=0)
+					#index += 1
+
 					inputs.append(source_padded_frames) 
 					input_masks.append(source_mask)
 					labels.append(target_padded_frames) 
 					label_masks.append(target_mask)	
-
-				randomized_indices = range(0, len(inputs)) 
-				random.shuffle(randomized_indices)
-				inputs = [inputs[i] for i in randomized_indices]
-				input_masks = [input_masks[i] for i in randomized_indices]
-				labels = [labels[i] for i in randomized_indices]
-				label_masks = [label_masks[i] for i in randomized_indices] 
 
 				return inputs, input_masks, labels, label_masks
 
