@@ -23,8 +23,8 @@ class Config(object):
 		instantiation.
 		"""
 		batch_size = 5
-		n_epochs = 10000
-		lr = 1e-2
+		n_epochs = 100000
+		lr = 1e-3
 		momentum = 0.3
 
 		max_num_frames = 1220  # This is the maximum length of any warped time series in the dataset 
@@ -202,7 +202,7 @@ class ANNModel(object):
 					self.output_wave_file(target_mfccs, filename='true_wav' + str(i))
 
 
-		def output_wave_file(self, predicted_mfccs, filename='learned_wav'):
+		def output_wave_file(self, predicted_mfccs, filename='predicted_wav'):
 				"""Outputs and saves a single wavefile from its MFCC features. 
 
 				Args:
@@ -380,13 +380,13 @@ class ANNModel(object):
 				label_masks = []
 				
 				SOURCE_DIR = '../data/cmu_arctic/us-english-female-slt/wav/'	
-				TARGET_DIR = '../data/cmu_arctic/us-english-male-bdl/wav/'
-				#TARGET_DIR = '../data/cmu_arctic/scottish-english-male-awb/wav/'	
+				#TARGET_DIR = '../data/cmu_arctic/us-english-male-bdl/wav/'
+				TARGET_DIR = '../data/cmu_arctic/scottish-english-male-awb/wav/'	
 				index = 0
 				for source_fname, target_fname in zip(os.listdir(SOURCE_DIR), os.listdir(TARGET_DIR)):
-					if index >= 20:
-						break
-					index += 1
+					#if index >= 20:
+					#	break
+					#index += 1
 
 					(source_sample_rate, source_wav_data) = wav.read(SOURCE_DIR + source_fname) 
 					(target_sample_rate, target_wav_data) = wav.read(TARGET_DIR + target_fname)
