@@ -24,7 +24,7 @@ class Config(object):
 		"""
 		batch_size = 5
 		n_epochs = 10000
-		lr = 1e-2
+		lr = 1e-3
 		momentum = 0.3
 
 		max_num_frames = 1220  # This is the maximum length of any warped time series in the dataset 
@@ -379,14 +379,17 @@ class ANNModel(object):
 				input_masks = []
 				label_masks = []
 				
-				SOURCE_DIR = '../data/cmu_arctic/us-english-female-slt/wav/'	
+				SOURCE_DIR = '../data/cmu_arctic/scottish-english-male-awb/wav/'	
 				TARGET_DIR = '../data/cmu_arctic/us-english-male-bdl/wav/'
 				#TARGET_DIR = '../data/cmu_arctic/scottish-english-male-awb/wav/'	
 				index = 0
 				for source_fname, target_fname in zip(os.listdir(SOURCE_DIR), os.listdir(TARGET_DIR)):
-					if index >= 20:
-						break
-					index += 1
+					#if index >= 20:
+					#	break
+					#index += 1
+
+					if source_fname == '.DS_Store' or target_fname == '.DS_Store':
+						continue
 
 					(source_sample_rate, source_wav_data) = wav.read(SOURCE_DIR + source_fname) 
 					(target_sample_rate, target_wav_data) = wav.read(TARGET_DIR + target_fname)
