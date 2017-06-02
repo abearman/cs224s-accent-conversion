@@ -181,22 +181,25 @@ class ANNModel(object):
 				Returns:
 						train_op: The Op for training.
 				"""
-				train_op = tf.train.MomentumOptimizer(self.config.lr, self.config.momentum).minimize(loss)
+				train_op = tf.train.AdamOptimizer(self.config.lr).minimize(loss)
 				return train_op
 
 		
-		def output_wave_files(self, predicted_mfccs_batch):
+		def output_wave_files(self, predicted_mfccs_batch, true_target_mfccs_batch):
 				"""Outputs and saves a single batch of wavefiles from their MFCC features. 
 
 				Args:
 					predicted_mfccs_batch: A np.ndarray (Tensorflow evaluated tensor) of shape 
 						(batch_size, max_num_frames, num_mfcc_coeffs)
+					true_target_mfccs_batch: A np.ndarray of shape (batch_size, max_num_frames, num_mfcc_coeffs)
 				"""
-				# Only outputting 2 wavefiles in the batch, because otherwise it takes too long
-				for i in range(min(2, predicted_mfccs_batch.shape[0])):
+				# Only outputting 1 wavefile in the batch, because otherwise it takes too long
+				for i in range(min(1, predicted_mfccs_batch.shape[0])):
 					print "Converting wavefile ", i
 					predicted_mfccs = predicted_mfccs_batch[i,:,:]
-					self.output_wave_file(predicted_mfccs, filename='learned_wav' + str(i))	
+					target_mfccs = true_target_mfccs_batch[i,:,:]
+					self.output_wave_file(predicted_mfccs, filename='predicted_wav' + str(i))	
+					self.output_wave_file(target_mfccs, filename='true_wav' + str(i))
 
 
 		def output_wave_file(self, predicted_mfccs, filename='learned_wav'):
@@ -214,7 +217,7 @@ class ANNModel(object):
 																							 self.config.num_mfcc_coeffs,
 																							 float(self.config.num_filters), self.config.window_len, self.config.window_step)
 
-				self.eng.soundsc(inverted_wav_data, self.config.sample_rate, nargout=0)
+				#self.eng.soundsc(inverted_wav_data, self.config.sample_rate, nargout=0)
 				inverted_wav_data = np.squeeze(np.array(inverted_wav_data))
 
 				# Scales the waveform to be between -1 and 1
@@ -246,10 +249,10 @@ class ANNModel(object):
 				# We only evaluate the first batch in the epoch
 				if should_output_wavefiles:
 					predicted_mfccs_batch = self.mfcc.eval(session=sess, feed_dict=feed)
-					true_target_mfccs = self.labels_placeholder.eval(session=sess, feed_dict=feed)
+					true_target_mfccs_batch = self.labels_placeholder.eval(session=sess, feed_dict=feed)
 					print "Predicted mfcc: ", predicted_mfccs_batch[0]
-					print "Target mfcc: ", true_target_mfccs[0]
-					self.output_wave_files(predicted_mfccs_batch)
+					print "Target mfcc: ", true_target_mfccs_batch[0]
+					self.output_wave_files(predicted_mfccs_batch, true_target_mfccs_batch)
 
 				return loss, summary 
 
@@ -378,6 +381,7 @@ class ANNModel(object):
 				
 				SOURCE_DIR = '../data/cmu_arctic/us-english-female-slt/wav/'	
 				TARGET_DIR = '../data/cmu_arctic/us-english-male-bdl/wav/'
+				#TARGET_DIR = '../data/cmu_arctic/scottish-english-male-awb/wav/'	
 				index = 0
 				for source_fname, target_fname in zip(os.listdir(SOURCE_DIR), os.listdir(TARGET_DIR)):
 					if index >= 20:
