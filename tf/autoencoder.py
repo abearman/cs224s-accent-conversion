@@ -1,6 +1,6 @@
 import tensorflow as tf
 import numpy as np
-from utils.general_utils import batch_multiply_by_matrix 
+from utils.general_utils import batch_multiply_by_matrix, batch_multiply_by_matrix_numpy
 from utils.fast_dtw import get_dtw_series 
 from utils.pad_sequence import pad_sequence
 from time import time, gmtime, strftime
@@ -53,8 +53,8 @@ def decode(encoder, current_input, max_num_frames, num_mfcc_coeffs, state_size_1
 
 
 def corrupt(x):
-    #return tf.multiply(x, tf.cast(tf.random_uniform(shape=tf.shape(x), minval=0, maxval=2, dtype=tf.int32), tf.float32))
-    return x # TODO
+    return tf.multiply(x, tf.cast(tf.random_uniform(shape=tf.shape(x), minval=0, maxval=2, dtype=tf.int32), tf.float32))
+
 
 def output_wave_files(predicted_mfccs_batch, true_target_mfccs_batch):
     """Outputs and saves a single batch of wavefiles from their MFCC features. 
@@ -68,7 +68,8 @@ def output_wave_files(predicted_mfccs_batch, true_target_mfccs_batch):
     for i in range(min(1, predicted_mfccs_batch.shape[0])):
         print "Converting wavefile ", i
         predicted_mfccs = predicted_mfccs_batch[i,:,:]
-        target_mfccs = true_target_mfccs_batch[i,:,:]
+        target_mfccs = true_target_mfccs_batch[i]
+
         output_wave_file(predicted_mfccs, filename='autoencoder_pred_' + str(i))   
         output_wave_file(target_mfccs, filename='autoencoder_input_' + str(i))
 
@@ -82,6 +83,7 @@ def output_wave_file(predicted_mfccs, filename):
     """
     global eng
     predicted_mfccs_transposed = np.transpose(predicted_mfccs)
+
 
     # MFCC features need to be a numpy array of shape (num_coefficients x num_frames) in order to be passed to the invmelfcc function
     inverted_wav_data = eng.invmelfcc(matlab.double(predicted_mfccs_transposed.tolist()), 16000.0, 25, 100.0, 0.005, 0.005)
@@ -106,8 +108,7 @@ def autoencoder(max_num_frames, num_mfcc_coeffs, state_size_1, state_size_2):
     decoded = decode(encoder, output, max_num_frames, num_mfcc_coeffs, state_size_1, state_size_2)
     cost = tf.sqrt(tf.reduce_mean(tf.square(decoded - x)))
 
-    output_wave_files(decoded, x)
-    return {'input': x, 'output': output, 'decoded': decoded, 'corrupt_prob': corrupt_prob, 'cost': cost}
+    return {'input': x, 'output': output, 'decoded': decoded, 'corrupt_prob': corrupt_prob, 'cost': cost, 'encoder': encoder}
     
 
 def pad_sequence(mfcc_features, max_num_frames):
@@ -155,7 +156,7 @@ def preprocess_data(num_mfcc_coeffs, num_filters, window_len, window_step, max_n
     TARGET_DIR = '../data/cmu_arctic/us-english-male-bdl/wav/'
     index = 0
     for source_fname, target_fname in zip(os.listdir(SOURCE_DIR), os.listdir(TARGET_DIR)):
-        if index >= 20:
+        if index >= 5:
             break
         index += 1
 
@@ -195,7 +196,7 @@ def autoencode():
     num_features = max_num_frames * num_mfcc_coeffs 
     state_size_1 = 50 
     state_size_2 = 50 
-    epochs = 10000
+    epochs = 10
     logs_path = "tensorboard/" + strftime("%Y_%m_%d_%H_%M_%S", gmtime())
 
     accent_a, accent_b = preprocess_data(num_mfcc_coeffs, num_filters, window_len, window_step, max_num_frames)
@@ -213,8 +214,14 @@ def autoencode():
         for batch in minibatches:
             sess.run(optimizer, feed_dict={ae['input']: batch, ae['corrupt_prob']: [1.0]})
             total_loss += ae['cost'].eval(session=sess, feed_dict={ae['input']: batch, ae['corrupt_prob']: [1.0]})
+            decoded = ae['decoded'].eval(session=sess, feed_dict={ae['input']: batch, ae['corrupt_prob']: [1.0]})
+            if epoch_i % 100 == 0:
+                output_wave_files(decoded, batch)
+
             n_minibatches += 1
         print epoch_i, total_loss/n_minibatches
+
+    encoder = ae['encoder']
 
     # learn weights for the second accent
     for epoch_i in range(epochs):
@@ -223,8 +230,26 @@ def autoencode():
         for batch in minibatches:
             sess.run(optimizer, feed_dict={ae['input']: batch, ae['corrupt_prob']: [1.0]})
             total_loss += ae['cost'].eval(session=sess, feed_dict={ae['input']: batch, ae['corrupt_prob']: [1.0]})
+            decoded = ae['decoded'].eval(session=sess, feed_dict={ae['input']: batch, ae['corrupt_prob']: [1.0]})
+            if epoch_i % 100 == 0:
+                output_wave_files(decoded, batch)
+
             n_minibatches += 1
         print epoch_i, total_loss/n_minibatches
+    decoder = ae['encoder']
+
+
+    minibatches = get_minibatches(accent_a, batch_size)
+    for i, batch in enumerate(minibatches):
+        encode_W1 = encoder[1].eval(session=sess) #, feed_dict={ae['input']: batch, ae['corrupt_prob']: [1.0]})
+        encode_W2 = encoder[0].eval(session=sess) #, feed_dict={ae['input']: batch, ae['corrupt_prob']: [1.0]})
+        decode_W1 = np.transpose(decoder[0].eval(session=sess)) #, feed_dict={ae['input']: batch, ae['corrupt_prob']: [1.0]}))
+        decode_W2 = np.transpose(decoder[1].eval(session=sess)) #, feed_dict={ae['input']: batch, ae['corrupt_prob']: [1.0]}))
+        h1 = np.tanh(batch_multiply_by_matrix_numpy(np.array(batch), encode_W1))
+        h2 = np.tanh(batch_multiply_by_matrix_numpy(h1, encode_W2))
+        h3 = np.tanh(batch_multiply_by_matrix_numpy(h2, decode_W1))
+        prediction = batch_multiply_by_matrix_numpy(h3, decode_W2)
+        output_wave_files(prediction, batch)
 
 autoencode()
 
