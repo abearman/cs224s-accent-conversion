@@ -2,7 +2,6 @@ from time import time, gmtime, strftime
 import numpy as np
 import os
 import random
-import matlab.engine
 
 import scipy.io.wavfile as wav
 from python_speech_features import mfcc
@@ -33,6 +32,7 @@ class Config(object):
 		num_filters = 100
 		window_len = 0.005	 # 5 ms
 		window_step = 0.005  # 5 ms	
+		n_classes = 2
 
 		num_features = max_num_frames * num_mfcc_coeffs 
 		state_size_1 = 50 
@@ -56,21 +56,17 @@ class ANNModel(object):
 													 (batch_size, max_num_frames, num_mfcc_coeffs), type tf.float32
 				labels_placeholder: Labels placeholder tensor of shape
 														(batch_size, max_num_frames, num_mfcc_coeffs), type tf.float32
-				input_masks_placeholder: Input masks placeholder tensor of shape
-																 (batch_size, max_num_frames), type tf.bool
-				labels_masks_placeholder: Labels masks placeholder tensor of shape
-																	(batch_size, max_num_frames), type tf.bool
 
 				Add these placeholders to self as the instance variables
 						self.input_placeholder
 						self.labels_placeholder
 				"""
-				self.input_placeholder = tf.placeholder(tf.float32, (None, self.config.max_num_frames, self.config.num_mfcc_coeffs))
-				self.labels_placeholder = tf.placeholder(tf.float32, (None, ))
+				self.input_placeholder = tf.placeholder(tf.float32, (None, self.config.num_features))
+				self.labels_placeholder = tf.placeholder(tf.int32, (None, ))
 
 
 
-		def create_feed_dict(self, inputs_batch, input_masks_batch, labels_batch=None, label_masks_batch=None):
+		def create_feed_dict(self, inputs_batch, labels_batch=None):
 				"""Creates the feed_dict for training the given step.
 
 				A feed_dict takes the form of:
@@ -81,9 +77,7 @@ class ANNModel(object):
 				
 				Args:
 						inputs_batch: A batch of input data.
-						input_masks_batch: A batch of input masks.
 						labels_batch: (Optional) a batch of label data.
-						labels_mask_batch: (Optional) a batch of label masks.
 				Returns:
 						feed_dict: The feed dictionary mapping from placeholders to values.
 				"""
@@ -99,33 +93,23 @@ class ANNModel(object):
 				data into a batch of predictions. In this case, the transformation is a linear layer plus a
 				softmax transformation:
 			
-				Implements a stacked, denoising autoencoder. 
-				Autoencoder learns two mappings: (1) Encoder: input ==> hidden layer, and (2) Decoder: hidden layer ==> output layer
-				
-
 				Returns:
 						pred: A tensor of shape (batch_size, n_classes)
 				"""
 
 				xavier = tf.contrib.layers.xavier_initializer()
-				W1 = tf.get_variable("W1", shape=(self.config.num_mfcc_coeffs, self.config.state_size_1), initializer=xavier) 
+				W1 = tf.get_variable("W1", shape=(self.config.num_features, self.config.state_size_1), initializer=xavier) 
 				b1 = tf.get_variable("b1", shape=(1, self.config.state_size_1))
 				W2 = tf.get_variable("W2", shape=(self.config.state_size_1, self.config.state_size_2), initializer=xavier) 
 				b2 = tf.get_variable("b2", shape=(1, self.config.state_size_2))
-				W3 = tf.get_variable("W3", shape=(self.config.state_size_2, self.config.num_mfcc_coeffs), initializer=xavier) 
+				W3 = tf.get_variable("W3", shape=(self.config.state_size_2, self.config.n_classes), initializer=xavier) 
+				b3 = tf.get_variable("b3", shape=(1, self.config.n_classes))
 
-				print "inputs shape: ", self.input_placeholder
-				h1 = tf.tanh(batch_multiply_by_matrix(batch=self.input_placeholder, matrix=W1))
-				print "h1 shape: ", h1
-
-				# [batch, max_num_frames, state_size1] x [state_size1, state_size2] = [batch, max_num_frames, state_size2]
-				h2 = tf.tanh(batch_multiply_by_matrix(batch=h1, matrix=W2))
-				print "h2 shape: ", h2
+				h1 = tf.tanh(tf.matmul(self.input_placeholder, W1) + b1)
+				h2 = tf.tanh(tf.matmul(h1, W2) + b2)
 				
-				# [batch, max_num_frames, state_size2] x [state_size2, num_mfcc_coeffs] = [batch, max_num_frames, num_mfcc_coeffs]
-				preds = batch_multiply_by_matrix(batch=h2, matrix=W3)
-
-				return preds 
+				pred = tf.matmul(h2, W3) + b3
+				return pred
  
 
 		def add_loss_op(self, pred):
@@ -136,13 +120,10 @@ class ANNModel(object):
 				Returns:
 						loss: A 0-d tensor (scalar)
 				"""
-				#unmasked_loss = tf.squared_difference(pred, self.labels_placeholder)
-				loss = tf.losses.mean_squared_error(pred, self.labels_placeholder) 
+				loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.labels_placeholder, logits=pred) 
 				print "loss before reduction: ", loss
 				loss = tf.reduce_mean(loss)
-				#loss = tf.reduce_mean( tf.squared_difference(pred, self.labels_placeholder))
-				#loss_masked = tf.boolean_mask(unmasked_loss, self.label_masks_placeholder)
-				#loss = tf.reduce_mean(loss_masked)
+	
 				return loss 
 
 
@@ -168,89 +149,47 @@ class ANNModel(object):
 				train_op = tf.train.AdamOptimizer(self.config.lr).minimize(loss)
 				return train_op
 
-		
-		def output_wave_files(self, predicted_mfccs_batch, true_target_mfccs_batch):
-				"""Outputs and saves a single batch of wavefiles from their MFCC features. 
 
-				Args:
-					predicted_mfccs_batch: A np.ndarray (Tensorflow evaluated tensor) of shape 
-						(batch_size, max_num_frames, num_mfcc_coeffs)
-					true_target_mfccs_batch: A np.ndarray of shape (batch_size, max_num_frames, num_mfcc_coeffs)
-				"""
-				# Only outputting 1 wavefile in the batch, because otherwise it takes too long
-				for i in range(min(1, predicted_mfccs_batch.shape[0])):
-					print "Converting wavefile ", i
-					predicted_mfccs = predicted_mfccs_batch[i,:,:]
-					target_mfccs = true_target_mfccs_batch[i,:,:]
-					self.output_wave_file(predicted_mfccs, filename='predicted_wav' + str(i))	
-					self.output_wave_file(target_mfccs, filename='true_wav' + str(i))
-
-
-		def output_wave_file(self, predicted_mfccs, filename='learned_wav'):
-				"""Outputs and saves a single wavefile from its MFCC features. 
-
-				Args:
-					predicted_mfccs: A np.ndarray (Tensorflow evaluated tensor) of shape 
-						(max_num_frames, num_mfcc_coeffs)
-				"""
-				predicted_mfccs_transposed = np.transpose(predicted_mfccs)
-				print predicted_mfccs_transposed.shape
-
-				# MFCC features need to be a numpy array of shape (num_coefficients x num_frames) in order to be passed to the invmelfcc function
-				inverted_wav_data = self.eng.invmelfcc(matlab.double(predicted_mfccs_transposed.tolist()),
-																							 self.config.sample_rate,
-																							 self.config.num_mfcc_coeffs,
-																							 float(self.config.num_filters), self.config.window_len, self.config.window_step)
-
-				#self.eng.soundsc(inverted_wav_data, self.config.sample_rate, nargout=0)
-				inverted_wav_data = np.squeeze(np.array(inverted_wav_data))
-
-				# Scales the waveform to be between -1 and 1
-				maxVec = np.max(inverted_wav_data)
-				minVec = np.min(inverted_wav_data)
-				inverted_wav_data = ((inverted_wav_data - minVec) / (maxVec - minVec) - 0.5) * 2
-
-				wav.write(filename + '.wav', self.config.sample_rate, inverted_wav_data)
-
-
-		def train_on_batch(self, sess, inputs_batch, input_masks_batch, labels_batch, label_masks_batch, should_output_wavefiles):
+		def train_on_batch(self, sess, inputs_batch, labels_batch):
 				"""Perform one step of gradient descent on the provided batch of data.
 
 				Args:
 						sess: tf.Session()
 						input_batch: np.ndarray of shape (batch_size, max_num_frames, num_mfcc_coeffs)
-						input_masks_batch: np.ndarray of shape (batch_size, max_num_frames)
 						labels_batch: np.ndarray of shape (batch_size, max_num_frames, num_mfcc_coeffs)
-						label_masks_batch: np.ndarray of shape (batch_size, max_num_frames)
-						should_output_wavefiles: bool that specifies whether or not we should output wavefiles from the predicted MFCC features
 				Returns:
 						loss: loss over the batch (a scalar)
 						summary: to be used for Tensorboard
 				"""
-				feed = self.create_feed_dict(inputs_batch, input_masks_batch, 
-																		 labels_batch=labels_batch, label_masks_batch=label_masks_batch)
+				feed = self.create_feed_dict(inputs_batch, labels_batch=labels_batch)
 				_, loss, summary = sess.run([self.train_op, self.loss, self.merged_summary_op], feed_dict=feed)
-
-				# We only evaluate the first batch in the epoch
-				if should_output_wavefiles:
-					predicted_mfccs_batch = self.mfcc.eval(session=sess, feed_dict=feed)
-					true_target_mfccs_batch = self.labels_placeholder.eval(session=sess, feed_dict=feed)
-					print "Predicted mfcc: ", predicted_mfccs_batch[0]
-					print "Target mfcc: ", true_target_mfccs_batch[0]
-					self.output_wave_files(predicted_mfccs_batch, true_target_mfccs_batch)
 
 				return loss, summary 
 
 
-		def run_epoch(self, sess, inputs, input_masks, labels, label_masks, train_writer, step_i, should_output_wavefiles):
+		def predict_on_batch(self, sess, inputs_batch):
+				"""Perform one step of gradient descent on the provided batch of data.
+
+				Args:
+					sess: tf.Session()
+					input_batch: np.ndarray of shape (batch_size, max_num_frames, num_mfcc_coeffs)
+					labels_batch: np.ndarray of shape (batch_size, max_num_frames, num_mfcc_coeffs)
+				Returns:
+					loss: loss over the batch (a scalar)
+					summary: to be used for Tensorboard
+				"""
+				feed = self.create_feed_dict(inputs_batch)
+				predictions = sess.run(tf.argmax(self.pred, axis=1), feed_dict=feed)
+				return predictions
+
+
+		def run_epoch(self, sess, inputs, labels, train_writer, step_i):
 				"""Runs an epoch of training.
 
 				Args:
 						sess: tf.Session() object
 						inputs: A list of length num_examples with float np.ndarray entries of shape (max_num_frames, num_mfcc_coeffs) 
-						input_masks: A list of length num_examples with boolean np.darray entries of shape (max_num_frames,)
 						labels: A list of length num_examples with float np.ndarray entries of shape (max_num_frames, num_mfcc_coeffs)	
-						label_masks: A list of length num_examples with boolean np.darray entries of shape (max_num_frames,)
 						train_writer: a tf.summary.FileWriter object
 						step_i: The global number of steps taken so far (i.e., batches we've done a full forward
 										and backward pass on) 
@@ -260,16 +199,8 @@ class ANNModel(object):
 										and backward pass on)
 				"""
 				n_minibatches, total_loss = 0, 0
-				for input_batch, input_masks_batch, labels_batch, label_masks_batch in \
-										get_minibatches([inputs, input_masks, labels, label_masks], self.config.batch_size):
-
-						# We only evaluate and output wavefiles on the first batch of the epoch
-						should_output_wavefiles_batch = False
-						if n_minibatches == 0: 
-							should_output_wavefiles_batch = True 
-						batch_loss, summary = self.train_on_batch(sess, input_batch, input_masks_batch, 
-																														labels_batch, label_masks_batch, 
-																														should_output_wavefiles and should_output_wavefiles_batch)
+				for input_batch, labels_batch in get_minibatches([inputs, labels], self.config.batch_size):
+						batch_loss, summary = self.train_on_batch(sess, input_batch, labels_batch)
 						total_loss += batch_loss
 
 						n_minibatches += 1
@@ -279,51 +210,41 @@ class ANNModel(object):
 				return total_loss / n_minibatches, step_i 
 
 
-		def optimize(self, sess, inputs, input_masks, labels, label_masks):
+		def optimize(self, sess, inputs, labels, test_inputs, test_labels):
 				"""Fit model on provided data.
 
 				Args:
 						sess: tf.Session()
 						inputs: A list of length num_examples with float np.ndarray entries of shape (max_num_frames, num_mfcc_coeffs) 
-						input_masks: A list of length num_examples with boolean np.darray entries of shape (max_num_frames,)
 						labels: A list of length num_examples with float np.ndarray entries of shape (max_num_frames, num_mfcc_coeffs)	
-						label_masks: A list of length num_examples with boolean np.darray entries of shape (max_num_frames,) 
 				Returns:
 						losses: list of losses per epoch
 				"""
 				train_writer = tf.summary.FileWriter(self.config.logs_path + '/train', sess.graph)
 				step_i = 0
 
-				losses = []
-
-				# Overfit on tiny dataset
-				#inputs = inputs[0:20]
-				#input_masks = input_masks[0:20] 
-				#labels = labels[0:20] 
-				#label_masks = label_masks[0:20]
+				losses = list()
+				preds = list()
 
 				for epoch in range(self.config.n_epochs):
 						start_time = time()
-
-						should_output_wavefiles_epoch = False
-						if epoch % 50 == 0:
-							should_output_wavefiles_epoch = True
-
-						average_loss, step_i = self.run_epoch(sess, inputs, input_masks, labels, label_masks, train_writer, step_i, 
-																									should_output_wavefiles_epoch)
+						average_loss, step_i = self.run_epoch(sess, inputs, labels, train_writer, step_i)
 						duration = time() - start_time
 						print 'Epoch {:}: loss = {:.2f} ({:.3f} sec)'.format(epoch, average_loss, duration)
 						losses.append(average_loss)
+						if epoch % 100 == 0 and epoch != 0:							
+							predictions = self.predict_on_batch(sess, test_inputs)
+							correct = 0
+							encountered = len(predictions)
+							for i in range(0, len(predictions)):									
+								if predictions[i] == test_labels[i]:
+									correct += 1
+							print 'batch correct',  correct/float(encountered)
+
+
+
 
 				return losses
-
-		
-		def setup_matlab_engine(self):
-				print "Starting matlab ... type in your password if prompted"
-				eng = matlab.engine.start_matlab()
-				eng.addpath('../invMFCCs_new')
-				print "Done starting matlab"
-				return eng				
 
 
 		def add_summary_op(self):
@@ -341,7 +262,6 @@ class ANNModel(object):
 
 
 		def build(self):
-				self.eng = self.setup_matlab_engine()
 				self.mfcc = None	# Add a handle to this so we can set it later
 				self.add_placeholders()
 				self.pred = self.add_prediction_op() 
@@ -351,7 +271,7 @@ class ANNModel(object):
 				self.merged_summary_op = self.add_summary_op()
 
 
-		def pad_sequence(mfcc_features, max_num_frames):
+		def pad_sequence(self, mfcc_features, max_num_frames):
 				"""
 				Args:
 					mfcc_features: a np.ndarray array of shape (num_frames, num_mfcc_coeffs)
@@ -364,18 +284,25 @@ class ANNModel(object):
 				num_frames = mfcc_features.shape[0]
 				num_mfcc_coeffs = mfcc_features.shape[1]
 
-				padded_mfcc_features = np.zeros((max_num_frames, num_mfcc_coeffs))
+				collapsed = list()
+				for i in range(0, num_frames):
+					for j in range(0, num_mfcc_coeffs):
+						collapsed.append(mfcc_features[i][j])
+				collapsed = np.array(collapsed)
+
+				padded_mfcc_features = np.zeros((max_num_frames * num_mfcc_coeffs))
 
 				# Truncate (or fill exactly
 				if num_frames >= max_num_frames:
-					padded_mfcc_features = mfcc_features[0:max_num_frames,:]
+					padded_mfcc_features = mfcc_features[0:max_num_frames]
 
 				# Append 0 MFCC vectors
 				elif num_frames < max_num_frames:
 					delta = max_num_frames - num_frames
-					zeros = np.zeros((delta, num_mfcc_coeffs))
-					padded_mfcc_features = np.concatenate((mfcc_features, zeros), axis=0)
+					zeros = np.zeros((delta * num_mfcc_coeffs))
+					padded_mfcc_features = np.concatenate((collapsed, zeros), axis=0)
 
+				print padded_mfcc_features.shape
 				return padded_mfcc_features
 
 
@@ -389,15 +316,13 @@ class ANNModel(object):
 				"""
 				inputs = [] 
 				labels = []	
-				input_masks = []
-				label_masks = []
 				
 				SOURCE_DIR = '../data/cmu_arctic/scottish-english-male-awb/wav/'	
 				TARGET_DIR = '../data/cmu_arctic/us-english-male-bdl/wav/'
 				#TARGET_DIR = '../data/cmu_arctic/scottish-english-male-awb/wav/'	
 				index = 0
 				for source_fname, target_fname in zip(os.listdir(SOURCE_DIR), os.listdir(TARGET_DIR)):
-					if index >= 5:
+					if index >= 20:
 						break
 					index += 1
 
@@ -416,8 +341,8 @@ class ANNModel(object):
 					source_mfcc_features, target_mfcc_features = get_dtw_series(source_mfcc_features, target_mfcc_features)
 
 					# Pads the MFCC feature matrices (rows) to length config.max_num_frames
-					source_padded_frames = pad_sequence(source_mfcc_features, config.max_num_frames)
-					target_padded_frames = pad_sequence(target_mfcc_features, config.max_num_frames)
+					source_padded_frames = self.pad_sequence(source_mfcc_features, config.max_num_frames)
+					target_padded_frames = self.pad_sequence(target_mfcc_features, config.max_num_frames)
 
 
 					inputs.append(source_padded_frames)
@@ -429,7 +354,7 @@ class ANNModel(object):
 
 
 def main():
-	"""Main entry met`hod for this file."""
+	"""Main entry method for this file."""
 	config = Config()
 
 	# Tell TensorFlow that the model will be built into the default Graph.
@@ -442,16 +367,23 @@ def main():
 			init = tf.global_variables_initializer()
 
 			print "Preprocessing data ..."
-			inputs, input_masks, labels, label_masks = model.preprocess_data(config)
+			inputs, labels = model.preprocess_data(config)
 			print "Finished preprocessing data"
+			all_data = len(inputs)
+			split = all_data / 10
+			train_inputs = inputs[split:]
+			test_inputs = inputs[:split]
+
+			train_labels = labels[split:]
+			test_labels = labels[:split]
 
 			# Create a session for running Ops in the Graph
 			with tf.Session() as sess:
 					# Run the Op to initialize the variables 
 					sess.run(init)
 					# Fit the model
-					losses = model.optimize(sess, inputs, input_masks, labels, label_masks)
-
+					losses = model.optimize(sess, train_inputs, train_labels, test_inputs, test_labels)
+					
 
 if __name__ == "__main__":
 		main()
