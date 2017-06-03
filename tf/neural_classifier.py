@@ -167,22 +167,6 @@ class ANNModel(object):
 				return loss, summary 
 
 
-		def predict_on_batch(self, sess, inputs_batch):
-				"""Perform one step of gradient descent on the provided batch of data.
-
-				Args:
-					sess: tf.Session()
-					input_batch: np.ndarray of shape (batch_size, max_num_frames, num_mfcc_coeffs)
-					labels_batch: np.ndarray of shape (batch_size, max_num_frames, num_mfcc_coeffs)
-				Returns:
-					loss: loss over the batch (a scalar)
-					summary: to be used for Tensorboard
-				"""
-				feed = self.create_feed_dict(inputs_batch)
-				predictions = sess.run(tf.argmax(self.pred, axis=1), feed_dict=feed)
-				return predictions
-
-
 		def run_epoch(self, sess, inputs, labels, train_writer, step_i):
 				"""Runs an epoch of training.
 
@@ -232,8 +216,8 @@ class ANNModel(object):
 						duration = time() - start_time
 						print 'Epoch {:}: loss = {:.2f} ({:.3f} sec)'.format(epoch, average_loss, duration)
 						losses.append(average_loss)
-						if epoch % 100 == 0 and epoch != 0:							
-							predictions = self.predict_on_batch(sess, test_inputs)
+						if epoch % 100 == 0 and epoch != 0:	
+							predictions = sess.run(tf.argmax(self.pred, axis=1), feed_dict={self.input_placeholder: test_inputs})						
 							correct = 0
 							encountered = len(predictions)
 							for i in range(0, len(predictions)):									
