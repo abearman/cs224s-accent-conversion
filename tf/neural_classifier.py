@@ -20,9 +20,9 @@ class Config(object):
 		information parameters. Model objects are passed a Config() object at
 		instantiation.
 		"""
-		batch_size = 5
-		n_epochs = 10000
-		lr = 1e-3
+		batch_size = 10
+		n_epochs = 1000
+		lr = 1e-4
 		momentum = 0.3
 
 		max_num_frames = 1220  # This is the maximum length of any warped time series in the dataset 
@@ -35,10 +35,10 @@ class Config(object):
 		n_classes = 2
 
 		num_features = max_num_frames * num_mfcc_coeffs 
-		state_size_1 = 50 
-		state_size_2 = 50 
+		state_size_1 = 1000 
+		state_size_2 = 750 
 		dropout_keep_prob = 1.0 # 0.8
-		logs_path = "tensorboard/" + strftime("%Y_%m_%d_%H_%M_%S", gmtime())
+		logs_path = "tensorboard/classifier/" + strftime("%Y_%m_%d_%H_%M_%S", gmtime())
 
 
 class ANNModel(object):
@@ -209,23 +209,29 @@ class ANNModel(object):
 				losses = list()
 				preds = list()
 
-				print len(inputs)
-				print len(test_inputs)
-
 				for epoch in range(self.config.n_epochs):
 						start_time = time()
 						average_loss, step_i = self.run_epoch(sess, inputs, labels, train_writer, step_i)
 						duration = time() - start_time
 						print 'Epoch {:}: loss = {:.2f} ({:.3f} sec)'.format(epoch, average_loss, duration)
 						losses.append(average_loss)
-						if epoch % 100 == 0 and epoch != 0:	
+						if average_loss < 0.1:
 							predictions = sess.run(tf.argmax(self.pred, axis=1), feed_dict={self.input_placeholder: test_inputs})						
 							correct = 0
 							encountered = len(predictions)
 							for i in range(0, len(predictions)):									
 								if predictions[i] == test_labels[i]:
 									correct += 1
-							print 'batch correct',  correct/float(encountered)
+							print 'percent correct',  correct/float(encountered)
+
+						elif epoch % 100 == 0 and epoch != 0:	
+							predictions = sess.run(tf.argmax(self.pred, axis=1), feed_dict={self.input_placeholder: test_inputs})						
+							correct = 0
+							encountered = len(predictions)
+							for i in range(0, len(predictions)):									
+								if predictions[i] == test_labels[i]:
+									correct += 1
+							print 'percent correct',  correct/float(encountered)
 
 
 
@@ -294,9 +300,9 @@ class ANNModel(object):
 				TARGET_DIR = '../data/cmu_arctic/us-english-male-bdl/wav/'
 				index = 0
 				for source_fname, target_fname in zip(os.listdir(SOURCE_DIR), os.listdir(TARGET_DIR)):
-					if index >= 500:
-						break
-					index += 1
+					#if index >= 100:
+					#	break
+					#index += 1
 
 					if source_fname == '.DS_Store' or target_fname == '.DS_Store':
 						continue
