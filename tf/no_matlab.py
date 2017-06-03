@@ -2,7 +2,7 @@ from time import time, gmtime, strftime
 import numpy as np
 import os
 import random
-import matlab.engine
+#import matlab.engine
 
 import scipy.io.wavfile as wav
 from python_speech_features import mfcc
@@ -23,7 +23,7 @@ class Config(object):
 		instantiation.
 		"""
 		batch_size = 5
-		n_epochs = 100000
+		n_epochs = 10000
 		lr = 1e-3
 		momentum = 0.3
 
@@ -36,8 +36,8 @@ class Config(object):
 		window_step = 0.005  # 5 ms	
 
 		num_features = max_num_frames * num_mfcc_coeffs 
-		state_size_1 = 100 
-		state_size_2 = 100
+		state_size_1 = 50 
+		state_size_2 = 50 
 		#state_size_3 = 50
 		#state_size_4 = 25
 		dropout_keep_prob = 1.0 # 0.8
@@ -115,7 +115,7 @@ class ANNModel(object):
 						pred: A tensor of shape (batch_size, n_classes)
 				"""
 
-				xavier = tf.contrib.layers.xavier_initializer()
+				xavier = tf.contrib.layers.xavier_initializer(uniform=True)
 				W1 = tf.get_variable("W1", shape=(self.config.num_mfcc_coeffs, self.config.state_size_1), initializer=xavier) 
 				#b1 = tf.get_variable("b1", shape=(1, self.config.state_size_1))
 				W2 = tf.get_variable("W2", shape=(self.config.state_size_1, self.config.state_size_2), initializer=xavier) 
@@ -202,30 +202,31 @@ class ANNModel(object):
 					self.output_wave_file(target_mfccs, filename='true_wav' + str(i))
 
 
-		def output_wave_file(self, predicted_mfccs, filename='predicted_wav'):
+		def output_wave_file(self, predicted_mfccs, filename='learned_wav'):
 				"""Outputs and saves a single wavefile from its MFCC features. 
 
 				Args:
 					predicted_mfccs: A np.ndarray (Tensorflow evaluated tensor) of shape 
 						(max_num_frames, num_mfcc_coeffs)
 				"""
-				predicted_mfccs_transposed = np.transpose(predicted_mfccs)
+				#predicted_mfccs_transposed = np.transpose(predicted_mfccs)
+				np.save(filename, predicted_mfccs)
 
 				# MFCC features need to be a numpy array of shape (num_coefficients x num_frames) in order to be passed to the invmelfcc function
-				inverted_wav_data = self.eng.invmelfcc(matlab.double(predicted_mfccs_transposed.tolist()),
+				"""inverted_wav_data = self.eng.invmelfcc(matlab.double(predicted_mfccs_transposed.tolist()),
 																							 self.config.sample_rate,
 																							 self.config.num_mfcc_coeffs,
-																							 float(self.config.num_filters), self.config.window_len, self.config.window_step)
+																							 float(self.config.num_filters), self.config.window_len, self.config.window_step)"""
 
 				#self.eng.soundsc(inverted_wav_data, self.config.sample_rate, nargout=0)
-				inverted_wav_data = np.squeeze(np.array(inverted_wav_data))
+				#inverted_wav_data = np.squeeze(np.array(inverted_wav_data))
 
 				# Scales the waveform to be between -1 and 1
-				maxVec = np.max(inverted_wav_data)
-				minVec = np.min(inverted_wav_data)
-				inverted_wav_data = ((inverted_wav_data - minVec) / (maxVec - minVec) - 0.5) * 2
+				#maxVec = np.max(inverted_wav_data)
+				#minVec = np.min(inverted_wav_data)
+				#inverted_wav_data = ((inverted_wav_data - minVec) / (maxVec - minVec) - 0.5) * 2
 
-				wav.write(filename + '.wav', self.config.sample_rate, inverted_wav_data)
+				#wav.write(filename + '.wav', self.config.sample_rate, inverted_wav_data)
 
 
 		def train_on_batch(self, sess, inputs_batch, input_masks_batch, labels_batch, label_masks_batch, should_output_wavefiles):
@@ -334,11 +335,12 @@ class ANNModel(object):
 
 		
 		def setup_matlab_engine(self):
-				print "Starting matlab ... type in your password if prompted"
+				"""print "Starting matlab ... type in your password if prompted"
 				eng = matlab.engine.start_matlab()
 				eng.addpath('../invMFCCs_new')
 				print "Done starting matlab"
-				return eng				
+				return eng		"""
+				print "Running remotely. No Matlab."		
 
 
 		def add_summary_op(self):
@@ -356,7 +358,7 @@ class ANNModel(object):
 
 
 		def build(self):
-				self.eng = self.setup_matlab_engine()
+				#self.eng = self.setup_matlab_engine()
 				self.mfcc = None	# Add a handle to this so we can set it later
 				self.add_placeholders()
 				self.pred = self.add_prediction_op() 
@@ -382,12 +384,11 @@ class ANNModel(object):
 				SOURCE_DIR = '../data/cmu_arctic/scottish-english-male-awb/wav/'	
 				TARGET_DIR = '../data/cmu_arctic/us-english-male-bdl/wav/'
 				#TARGET_DIR = '../data/cmu_arctic/scottish-english-male-awb/wav/'	
-				#TARGET_DIR = '../data/cmu_arctic/indian-english-male-ksp/wav/'
 				index = 0
 				for source_fname, target_fname in zip(os.listdir(SOURCE_DIR), os.listdir(TARGET_DIR)):
-					#if index >= 20:
-					#	break
-					#index += 1
+					if index >= 20:
+						break
+					index += 1
 
 					if source_fname == '.DS_Store' or target_fname == '.DS_Store':
 						continue
@@ -451,4 +452,3 @@ def main():
 
 if __name__ == "__main__":
 		main()
-
