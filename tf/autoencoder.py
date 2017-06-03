@@ -30,10 +30,10 @@ def get_minibatches(data, size):
     return minibatches
 
 
-def encode(current_input, max_num_frames, num_mfcc_coeffs, state_size_1, state_size_2):
+def encode(current_input, max_num_frames, num_mfcc_coeffs, state_size_1, state_size_2, version):
     xavier = tf.contrib.layers.xavier_initializer(uniform=True)
-    W1 = tf.get_variable("W1", shape=(num_mfcc_coeffs, state_size_1), initializer=xavier) 
-    W2 = tf.get_variable("W2", shape=(state_size_1, state_size_2), initializer=xavier) 
+    W1 = tf.get_variable("W1"+version, shape=(num_mfcc_coeffs, state_size_1), initializer=xavier) 
+    W2 = tf.get_variable("W2"+version, shape=(state_size_1, state_size_2), initializer=xavier) 
    
     h1 = tf.tanh(batch_multiply_by_matrix(batch=current_input, matrix=W1))
     h2 = tf.tanh(batch_multiply_by_matrix(batch=h1, matrix=W2))
@@ -98,17 +98,17 @@ def output_wave_file(predicted_mfccs, filename):
     wav.write(filename + '.wav', 16000.0, inverted_wav_data)
 
 
-def autoencoder(max_num_frames, num_mfcc_coeffs, state_size_1, state_size_2):
-    x = tf.placeholder(tf.float32, (None, max_num_frames, num_mfcc_coeffs))
+def autoencoder(max_num_frames, num_mfcc_coeffs, state_size_1, state_size_2, version):
+    input_placeholder = tf.placeholder(tf.float32, (None, max_num_frames, num_mfcc_coeffs))
     corrupt_prob = tf.placeholder(tf.float32, [1])
-    current_input = corrupt(x) * corrupt_prob + x * (1 - corrupt_prob)
+    current_input = corrupt(input_placeholder) * corrupt_prob + input_placeholder * (1 - corrupt_prob)
 
-    encoder, output = encode(current_input, max_num_frames, num_mfcc_coeffs, state_size_1, state_size_2)
+    encoder, output = encode(current_input, max_num_frames, num_mfcc_coeffs, state_size_1, state_size_2, version)
     
     decoded = decode(encoder, output, max_num_frames, num_mfcc_coeffs, state_size_1, state_size_2)
-    cost = tf.sqrt(tf.reduce_mean(tf.square(decoded - x)))
+    cost = tf.losses.mean_squared_error(decoded, input_placeholder)
 
-    return {'input': x, 'output': output, 'decoded': decoded, 'corrupt_prob': corrupt_prob, 'cost': cost, 'encoder': encoder}
+    return {'input': input_placeholder, 'output': output, 'decoded': decoded, 'corrupt_prob': corrupt_prob, 'cost': cost, 'encoder': encoder}
     
 
 def pad_sequence(mfcc_features, max_num_frames):
@@ -149,14 +149,12 @@ def preprocess_data(num_mfcc_coeffs, num_filters, window_len, window_step, max_n
     """
     inputs = [] 
     labels = [] 
-    input_masks = []
-    label_masks = []
     
     SOURCE_DIR = '../data/cmu_arctic/scottish-english-male-awb/wav/'    
     TARGET_DIR = '../data/cmu_arctic/us-english-male-bdl/wav/'
     index = 0
     for source_fname, target_fname in zip(os.listdir(SOURCE_DIR), os.listdir(TARGET_DIR)):
-        if index >= 5:
+        if index >= 20:
             break
         index += 1
 
@@ -184,7 +182,6 @@ def preprocess_data(num_mfcc_coeffs, num_filters, window_len, window_step, max_n
 
 def autoencode():
     batch_size = 5
-    n_epochs = 10000
     lr = 1e-3
     momentum = 0.3
     max_num_frames = 1220  # max length of warped time series
@@ -196,13 +193,15 @@ def autoencode():
     num_features = max_num_frames * num_mfcc_coeffs 
     state_size_1 = 50 
     state_size_2 = 50 
-    epochs = 10
+    epochs = 1000
     logs_path = "tensorboard/" + strftime("%Y_%m_%d_%H_%M_%S", gmtime())
 
     accent_a, accent_b = preprocess_data(num_mfcc_coeffs, num_filters, window_len, window_step, max_num_frames)
-    ae = autoencoder(max_num_frames, num_mfcc_coeffs, state_size_1, state_size_2)
+    ae1 = autoencoder(max_num_frames, num_mfcc_coeffs, state_size_1, state_size_2, '1')
+    ae2 = autoencoder(max_num_frames, num_mfcc_coeffs, state_size_1, state_size_2, '2')
 
-    optimizer = tf.train.AdamOptimizer(lr).minimize(ae['cost'])
+    optimizer1 = tf.train.AdamOptimizer(lr).minimize(ae1['cost'])
+    optimizer2 = tf.train.AdamOptimizer(lr).minimize(ae2['cost'])
 
     sess = tf.Session()
     sess.run(tf.global_variables_initializer())
@@ -212,31 +211,27 @@ def autoencode():
         n_minibatches, total_loss = 0, 0
         minibatches = get_minibatches(accent_a, batch_size)
         for batch in minibatches:
-            sess.run(optimizer, feed_dict={ae['input']: batch, ae['corrupt_prob']: [1.0]})
-            total_loss += ae['cost'].eval(session=sess, feed_dict={ae['input']: batch, ae['corrupt_prob']: [1.0]})
-            decoded = ae['decoded'].eval(session=sess, feed_dict={ae['input']: batch, ae['corrupt_prob']: [1.0]})
-            if epoch_i % 100 == 0:
-                output_wave_files(decoded, batch)
+            sess.run(optimizer1, feed_dict={ae1['input']: batch, ae1['corrupt_prob']: [1.0]})
+            total_loss += ae1['cost'].eval(session=sess, feed_dict={ae1['input']: batch, ae1['corrupt_prob']: [1.0]})
+            decoded = ae1['decoded'].eval(session=sess, feed_dict={ae1['input']: batch, ae1['corrupt_prob']: [1.0]})
 
             n_minibatches += 1
         print epoch_i, total_loss/n_minibatches
 
-    encoder = ae['encoder']
+    encoder = ae1['encoder']
 
     # learn weights for the second accent
     for epoch_i in range(epochs):
         n_minibatches, total_loss = 0, 0
         minibatches = get_minibatches(accent_a, batch_size)
         for batch in minibatches:
-            sess.run(optimizer, feed_dict={ae['input']: batch, ae['corrupt_prob']: [1.0]})
-            total_loss += ae['cost'].eval(session=sess, feed_dict={ae['input']: batch, ae['corrupt_prob']: [1.0]})
-            decoded = ae['decoded'].eval(session=sess, feed_dict={ae['input']: batch, ae['corrupt_prob']: [1.0]})
-            if epoch_i % 100 == 0:
-                output_wave_files(decoded, batch)
+            sess.run(optimizer2, feed_dict={ae2['input']: batch, ae2['corrupt_prob']: [1.0]})
+            total_loss += ae2['cost'].eval(session=sess, feed_dict={ae2['input']: batch, ae2['corrupt_prob']: [1.0]})
+            decoded = ae2['decoded'].eval(session=sess, feed_dict={ae2['input']: batch, ae2['corrupt_prob']: [1.0]})
 
             n_minibatches += 1
         print epoch_i, total_loss/n_minibatches
-    decoder = ae['encoder']
+    decoder = ae2['encoder']
 
 
     minibatches = get_minibatches(accent_a, batch_size)

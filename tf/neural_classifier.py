@@ -121,7 +121,6 @@ class ANNModel(object):
 						loss: A 0-d tensor (scalar)
 				"""
 				loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.labels_placeholder, logits=pred) 
-				print "loss before reduction: ", loss
 				loss = tf.reduce_mean(loss)
 	
 				return loss 
@@ -210,6 +209,9 @@ class ANNModel(object):
 				losses = list()
 				preds = list()
 
+				print len(inputs)
+				print len(test_inputs)
+
 				for epoch in range(self.config.n_epochs):
 						start_time = time()
 						average_loss, step_i = self.run_epoch(sess, inputs, labels, train_writer, step_i)
@@ -255,7 +257,7 @@ class ANNModel(object):
 				self.merged_summary_op = self.add_summary_op()
 
 
-		def pad_sequence(self, mfcc_features, max_num_frames):
+		def pad_sequence(self, mfcc_features):
 				"""
 				Args:
 					mfcc_features: a np.ndarray array of shape (num_frames, num_mfcc_coeffs)
@@ -268,26 +270,13 @@ class ANNModel(object):
 				num_frames = mfcc_features.shape[0]
 				num_mfcc_coeffs = mfcc_features.shape[1]
 
+				res = np.zeros(self.config.num_features)
 				collapsed = list()
 				for i in range(0, num_frames):
 					for j in range(0, num_mfcc_coeffs):
-						collapsed.append(mfcc_features[i][j])
-				collapsed = np.array(collapsed)
-
-				padded_mfcc_features = np.zeros((max_num_frames * num_mfcc_coeffs))
-
-				# Truncate (or fill exactly
-				if num_frames >= max_num_frames:
-					padded_mfcc_features = mfcc_features[0:max_num_frames]
-
-				# Append 0 MFCC vectors
-				elif num_frames < max_num_frames:
-					delta = max_num_frames - num_frames
-					zeros = np.zeros((delta * num_mfcc_coeffs))
-					padded_mfcc_features = np.concatenate((collapsed, zeros), axis=0)
-
-				print padded_mfcc_features.shape
-				return padded_mfcc_features
+						res[i+j] = mfcc_features[i][j]
+				
+				return res
 
 
 		def preprocess_data(self, config):
@@ -303,10 +292,9 @@ class ANNModel(object):
 				
 				SOURCE_DIR = '../data/cmu_arctic/scottish-english-male-awb/wav/'	
 				TARGET_DIR = '../data/cmu_arctic/us-english-male-bdl/wav/'
-				#TARGET_DIR = '../data/cmu_arctic/scottish-english-male-awb/wav/'	
 				index = 0
 				for source_fname, target_fname in zip(os.listdir(SOURCE_DIR), os.listdir(TARGET_DIR)):
-					if index >= 20:
+					if index >= 500:
 						break
 					index += 1
 
@@ -325,8 +313,8 @@ class ANNModel(object):
 					source_mfcc_features, target_mfcc_features = get_dtw_series(source_mfcc_features, target_mfcc_features)
 
 					# Pads the MFCC feature matrices (rows) to length config.max_num_frames
-					source_padded_frames = self.pad_sequence(source_mfcc_features, config.max_num_frames)
-					target_padded_frames = self.pad_sequence(target_mfcc_features, config.max_num_frames)
+					source_padded_frames = self.pad_sequence(source_mfcc_features)
+					target_padded_frames = self.pad_sequence(target_mfcc_features)
 
 
 					inputs.append(source_padded_frames)
