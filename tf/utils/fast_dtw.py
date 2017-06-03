@@ -22,7 +22,9 @@ def get_dtw_series(source_mfccs, target_mfccs):
 	print "distance: ", distance
 
 	num_warped_frames = len(path)
-	num_coefficients = source_mfccs.shape[1]
+	num_coefficients = 1
+	if len(source_mfccs.shape) > 1:
+		num_coefficients = source_mfccs.shape[1]
 	source_warped_array = np.zeros( (num_warped_frames, num_coefficients) ) 
 	target_warped_array = np.zeros( (num_warped_frames, num_coefficients) )
 
@@ -32,4 +34,4 @@ def get_dtw_series(source_mfccs, target_mfccs):
 		target_warped_array[index,:] = target_list[tgt_idx]
 		index += 1
 
-	return source_warped_array, target_warped_array
+	return np.squeeze(source_warped_array), np.squeeze(target_warped_array)
