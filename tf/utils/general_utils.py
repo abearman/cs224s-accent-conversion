@@ -17,25 +17,14 @@ def batch_multiply_by_matrix(matrix=None, batch=None):
 	ret = tf.reshape(ret, [-1, n, c])
 	return ret
 
-
-"""
-def batch_multiply_by_matrix(matrix=None, batch=None, matrixByBatch=False):
-	ret = None
-	if matrixByBatch:
-		ret = tf.scan(lambda a, x: tf.matmul(matrix, x), batch)
-	else:
-		# (batch_sz, n, m) x (n*m, c)
-		# (batch_sz, n*m) x (n*m, c)
-		# (batch_sz, c)
-		batch_sz = batch.get_shape().as_list()[0]
-		n = batch.get_shape().as_list()[1]
-		m = batch.get_shape().as_list()[2]
-		c = matrix.get_shape().as_list()[1]
-		batch = tf.reshape(batch, [-1, n*m])
-		ret = tf.matmul(batch, matrix)
-		ret = tf.reshape(ret, [-1, c])
+def batch_multiply_by_matrix_numpy(batch, matrix):
+	n = batch.shape[1]
+	m = batch.shape[2]
+	c = matrix.shape[1]
+	batch = np.reshape(batch, [-1, m])
+	ret = np.matmul(batch, matrix)
+	ret = np.reshape(ret, [-1, n, c])
 	return ret
-"""
 
 def get_minibatches(data, minibatch_size, shuffle=True):
 		"""
