@@ -298,10 +298,6 @@ class ANNModel(object):
 
 				losses = []
 
-				# Overfit on tiny dataset
-				#inputs = inputs[0:20]
-				#labels = labels[0:20] 
-
 				for epoch in range(self.config.n_epochs):
 						start_time = time()
 
@@ -367,8 +363,9 @@ class ANNModel(object):
 				#TARGET_DIR = '../data/cmu_arctic/indian-english-male-ksp/wav/'
 				index = 0
 				for source_fname, target_fname in zip(os.listdir(SOURCE_DIR), os.listdir(TARGET_DIR)):
-					if index >= 100:
-						break
+					#if index >= 10:
+					#	break
+					print "index: ", index
 					index += 1
 		
 					(source_sample_rate, source_wav_data) = wav.read(SOURCE_DIR + source_fname) 
@@ -387,10 +384,7 @@ class ANNModel(object):
 					sleep(7)
 					"""
 
-					# Aligns the FFT features using FastDTW.
-					#src_fft, tgt_fft= get_dtw_series(src_fft, tgt_fft)
-
-					# Pads the MFCC feature matrices (rows) to length config.max_num_frames
+					# Pads the FFT features to length config.max_num_frames
 					source_padded_frames = pad_sequence(src_fft, config.max_num_frames, 
 								num_samples_per_frame=self.config.num_samples_per_frame)
 					target_padded_frames = pad_sequence(tgt_fft, config.max_num_frames, 
@@ -398,6 +392,8 @@ class ANNModel(object):
 
 					source_padded_frames = np.reshape(source_padded_frames, (self.config.max_num_frames, self.config.num_samples_per_frame)) 
 					target_padded_frames= np.reshape(target_padded_frames, (self.config.max_num_frames, self.config.num_samples_per_frame))
+
+					#source_padded_frames, target_padded_frames = get_dtw_series(source_padded_frames, target_padded_frames)
 
 					"""
 					print "Playing after"
