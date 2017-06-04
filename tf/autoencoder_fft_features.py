@@ -30,8 +30,10 @@ def complex_to_float_tensor(input_tensor):
     return tf.concat([tf.real(input_tensor), tf.imag(input_tensor)], axis=-1)
 
 def complex_to_float_numpy(input_array):
-    # Concatenates the complex component after the real component along the last axis.
-    return np.concatenate([input_array.real, input_array.imag], axis=-1)
+    res = list()
+    for entry in input_array:
+        res.append(np.concatenate([entry.real, entry.imag], axis=-1))
+    return res
 
 def encode(current_input, max_num_frames, num_samples_per_frame, state_size_1, state_size_2, version):
     xavier = tf.contrib.layers.xavier_initializer()
@@ -85,13 +87,13 @@ def output_wave_file(predicted, filename):
             (max_num_frames, num_mfcc_coeffs)
     """
     # Concatenate all the FFT values into a 1D array
-    predicted_ffts = np.reshape(predicted_ffts, (-1,))  # Concatenate all the fft values together
+    predicted_ffts = np.reshape(predicted, (-1,))  # Concatenate all the fft values together
 
     # Get rid of the trailing zeros 
     predicted_ffts = np.trim_zeros(predicted_ffts, 'b')
 
     # Do the inverse FFT to the predicted data, and only consider its real values for playback
-    inverted_wav_data = ifft(predicted_ffts) 
+    inverted_wav_data = ifft(predicted_ffts.astype(np.float32))
     inverted_wav_data = inverted_wav_data.real
 
     sd.play(inverted_wav_data, 16000.0)
@@ -176,7 +178,7 @@ def autoencode():
     num_features = max_num_frames * num_samples_per_frame 
     state_size_1 = 50 
     state_size_2 = 50 
-    epochs = 100
+    epochs = 10
 
     logs_path = "tensorboard/" + strftime("%Y_%m_%d_%H_%M_%S", gmtime())
 
@@ -219,8 +221,8 @@ def autoencode():
 
 
     minibatches = get_minibatches(accent_a, batch_size)
-    for i, batch in enumerate(minibatches):
-        batch = complex_to_float_numpy(batch)
+    for i, raw_batch in enumerate(minibatches):
+        batch = complex_to_float_numpy(raw_batch)
         encode_W1 = encoder[1].eval(session=sess)
         encode_W2 = encoder[0].eval(session=sess)
         decode_W1 = np.transpose(decoder[0].eval(session=sess))
