@@ -362,7 +362,6 @@ class ANNModel(object):
 					src_fft = fft(source_wav_data)	# Both of these are complex numbers
 					tgt_fft = fft(target_wav_data)	
 
-					# Pads the MFCC feature matrices (rows) to length config.max_num_frames
 					source_padded_frames = pad_sequence(src_fft, config.max_num_frames, 
 								num_samples_per_frame=self.config.num_samples_per_frame)
 					target_padded_frames = pad_sequence(tgt_fft, config.max_num_frames, 
