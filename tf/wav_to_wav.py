@@ -34,10 +34,10 @@ class Config(object):
 		state_size_2 = 100
 
 		dropout_keep_prob = 1.0 # 0.8
-		logs_path = "tensorboard/" + strftime("%Y_%m_%d_%H_%M_%S", gmtime())
+		logs_path = "tensorboard/wav_to_wav/" + strftime("%Y_%m_%d_%H_%M_%S", gmtime())
 
 
-class ANNModel(object):
+class Wav2Wav(object):
 		"""Implements a stacked, denoising autoencoder with a MSE loss."""
 
 		def add_placeholders(self):
@@ -169,10 +169,10 @@ class ANNModel(object):
 				# Only outputting 1 wavefile in the batch, because otherwise it takes too long
 				for i in range(min(1, predicted_batch.shape[0])):
 					print "Converting wavefile ", i
-					predicted = predicted_batch[i,:,:]
-					target = true_target_batch[i,:,:]
-					wav.write('predicted_'+i+'.wav', self.config.sample_rate, predicted)
-					wav.write('target_'+i+'.wav', self.config.sample_rate, target)
+					predicted = predicted_batch[i,:]
+					target = true_target_batch[i,:]
+					wav.write('predicted_'+str(i)+'.wav', self.config.sample_rate, predicted)
+					wav.write('target_'+str(i)+'.wav', self.config.sample_rate, target)
 
 
 
@@ -311,7 +311,10 @@ class ANNModel(object):
 				res = np.zeros(self.config.wav_len)
 				collapsed = list()
 				for i in range(0, self.config.wav_len-1):
-					res[i] = features[i]
+					if i < len(features):
+						res[i] = features[i]
+					else:
+						break
 
 				return res
 
@@ -331,7 +334,7 @@ class ANNModel(object):
 				SOURCE_DIR = '../data/cmu_arctic/scottish-english-male-awb/reconstructed_wav/'
 				index = 0
 				for source_fname, target_fname in zip(os.listdir(SOURCE_DIR), os.listdir(TARGET_DIR)):
-					if index >= 3:
+					if index >= 100:
 						break
 					index += 1
 
@@ -341,10 +344,6 @@ class ANNModel(object):
 					(source_sample_rate, source_wav_data) = wav.read(SOURCE_DIR + source_fname) 
 					(target_sample_rate, target_wav_data) = wav.read(TARGET_DIR + target_fname)
 
-					#source_mfcc_features = np.array(mfcc(source_wav_data, samplerate=source_sample_rate, numcep=self.config.num_mfcc_coeffs,
-																							 #nfilt=self.config.num_filters, winlen=self.config.window_len, winstep=self.config.window_step))
-					#target_mfcc_features = np.array(mfcc(target_wav_data, samplerate=target_sample_rate, numcep=self.config.num_mfcc_coeffs,
-																							# nfilt=self.config.num_filters, winlen=self.config.window_len, winstep=self.config.window_step))
 
 					# Aligns the MFCC features matrices using FastDTW.
 					source_features, target_features = get_dtw_series(source_wav_data, target_wav_data)
@@ -366,11 +365,11 @@ def main():
 
 	# Tell TensorFlow that the model will be built into the default Graph.
 	# (not required but good practice)
-	logs_path = "tensorboard/" + strftime("%Y_%m_%d_%H_%M_%S", gmtime())
+	logs_path = config.logs_path
 
 	with tf.Graph().as_default():
 			# Build the model and add the variable initializer Op
-			model = ANNModel(config)
+			model = Wav2Wav(config)
 			init = tf.global_variables_initializer()
 
 			print "Preprocessing data ..."
