@@ -41,14 +41,12 @@ class Config(object):
 		num_features = max_num_frames * num_samples_per_frame 
 		state_size_1 = 50 
 		state_size_2 = 50 
-		#state_size_3 = 50
-		#state_size_4 = 25
 		dropout_keep_prob = 1.0 # 0.8
 		logs_path = "tensorboard/" + strftime("%Y_%m_%d_%H_%M_%S", gmtime())
 
 
 class ANNModel(object):
-		"""Implements a stacked, denoising autoencoder with a MSE loss."""
+		"""Implements a feedforward neural network with a MSE loss."""
 
 		def add_placeholders(self):
 				"""Generates placeholder variables to represent the input tensors.
@@ -62,10 +60,6 @@ class ANNModel(object):
 													 (batch_size, max_num_frames, num_mfcc_coeffs), type tf.complex64
 				labels_placeholder: Labels placeholder tensor of shape
 														(batch_size, max_num_frames, num_mfcc_coeffs), type tf.complex64
-
-				Add these placeholders to self as the instance variables
-						self.input_placeholder
-						self.labels_placeholder
 				"""
 				self.input_placeholder = tf.placeholder(tf.complex64, (None, self.config.max_num_frames, self.config.num_samples_per_frame))
 				self.labels_placeholder = tf.placeholder(tf.complex64, (None, self.config.max_num_frames, self.config.num_samples_per_frame))
@@ -74,13 +68,6 @@ class ANNModel(object):
 
 		def create_feed_dict(self, inputs_batch, labels_batch=None):
 				"""Creates the feed_dict for training the given step.
-
-				A feed_dict takes the form of:
-				feed_dict = {
-								<placeholder>: <tensor of values to be passed for placeholder>,
-								....
-				}
-				
 				Args:
 						inputs_batch: A batch of input data.
 						labels_batch: (Optional) a batch of label data.
@@ -408,10 +395,11 @@ class ANNModel(object):
 				#TARGET_DIR = '../data/cmu_arctic/indian-english-male-ksp/wav/'
 				index = 0
 				for source_fname, target_fname in zip(os.listdir(SOURCE_DIR), os.listdir(TARGET_DIR)):
-					#if index >= 10:
-					#	break
-					print "index: ", index
+					if index >= 5:
+						break
 					index += 1
+					if source_fname == '.DS_Store' or target_fname == '.DS_Store':
+						continue
 		
 					(source_sample_rate, source_wav_data) = wav.read(SOURCE_DIR + source_fname) 
 					(target_sample_rate, target_wav_data) = wav.read(TARGET_DIR + target_fname)
@@ -419,17 +407,6 @@ class ANNModel(object):
 					src_fft = fft(source_wav_data)	# Both of these are complex numbers
 					tgt_fft = fft(target_wav_data)	
 
-					"""
-					print "Playing before"
-					print "tgt fft: ", tgt_fft
-					data_before = ifft(tgt_fft).real
-					print "shape data before: ", data_before.shape
-					print data_before
-					sd.play(data_before, self.config.sample_rate)
-					sleep(7)
-					"""
-
-					# Pads the FFT features to length config.max_num_frames
 					source_padded_frames = pad_sequence(src_fft, config.max_num_frames, 
 								num_samples_per_frame=self.config.num_samples_per_frame)
 					target_padded_frames = pad_sequence(tgt_fft, config.max_num_frames, 
@@ -437,22 +414,6 @@ class ANNModel(object):
 
 					source_padded_frames = np.reshape(source_padded_frames, (self.config.max_num_frames, self.config.num_samples_per_frame)) 
 					target_padded_frames= np.reshape(target_padded_frames, (self.config.max_num_frames, self.config.num_samples_per_frame))
-
-					#source_padded_frames, target_padded_frames = get_dtw_series(source_padded_frames, target_padded_frames)
-
-					"""
-					print "Playing after"
-					target_padded_frames = np.reshape(target_padded_frames, (-1,))
-					target_unpadded_frames = np.trim_zeros(target_padded_frames, 'b')
-					print "tgt fft unpadded: ", target_unpadded_frames
-
-					data_after = ifft(target_unpadded_frames).real
-					#data_after = ifft(np.reshape(target_padded_frames, (-1,))).real
-					print "shape data after: ", data_after.shape
-					print data_after
-					sd.play(data_after, self.config.sample_rate)
-					sleep(7)
-					"""
 
 					inputs.append(source_padded_frames) 
 					labels.append(target_padded_frames) 
