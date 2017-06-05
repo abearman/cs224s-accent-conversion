@@ -69,6 +69,7 @@ class ANNModel(object):
 				"""
 				self.input_placeholder = tf.placeholder(tf.complex64, (None, self.config.max_num_frames, self.config.num_samples_per_frame))
 				self.labels_placeholder = tf.placeholder(tf.complex64, (None, self.config.max_num_frames, self.config.num_samples_per_frame))
+				self.dropout_placeholder = tf.placeholder(tf.float32, ())
 
 
 		def create_feed_dict(self, inputs_batch, labels_batch=None):
@@ -89,6 +90,7 @@ class ANNModel(object):
 				feed_dict = {
 					self.input_placeholder: inputs_batch,
 					self.labels_placeholder: labels_batch,
+					self.dropout_placeholder: self.config.dropout_keep_prob
 				}
 				return feed_dict
 
@@ -313,7 +315,49 @@ class ANNModel(object):
 
 				return losses
 
-		
+
+		def evaluate_batch(self, sess, input_batch, labels_batch):
+				feed = {}
+				feed[self.input_placeholder] = input_batch 
+				feed[self.labels_placeholder] = labels_batch 
+				# No dropout on test 
+				feed[self.dropout_placeholder] = 1.0
+
+				_, loss, summary = sess.run([self.train_op, self.loss, self.merged_summary_op], feed_dict=feed)
+
+				features_batch = self.fft.eval(feed_dict=input_feed, session=sess)
+				true_features_batch = labels_batch 
+				
+				mcds_for_batch = []
+				for i in range(len(true_features_batch)):
+					features_single_ex = features_batch[i,:,:] 
+					true_features_single_ex = true_features_batch[i]
+					mcd_one_example = mcd_score(features_single_ex, true_features_single_ex)
+					mcds_for_batch.append(mcd_one_example)
+
+				return mcds_for_batch 
+
+
+		def validate(self, sess, inputs, labels, model_dir, model_name):
+				"""Evaluates the provided model on the provided validation data.
+				
+				Returns:
+					mcd: the MCD score for every input
+				"""
+				self.saver = tf.train.import_meta_graph(model_path + model_name + ".meta")
+				self.saver.restore(sess, model_path + model_name)
+
+				mcds = []
+				step = 50 
+
+				for start_idx in range(0, len(dataset), step):
+					end_idx = min(start_idx + step, len(inputs))
+					mcds_one_batch = self.evaluate_batch(sess, inputs[start_idx:end_idx], labels[start_idx:end_idx])
+					mcds += mcds_one_batch 
+				mcd_total = sum(mcds) / float(len(mcds))
+				print("Total MCD: ", mcd_total)	
+	
+
 		def setup_matlab_engine(self):
 				print "Starting matlab ... type in your password if prompted"
 				eng = matlab.engine.start_matlab()
@@ -337,7 +381,8 @@ class ANNModel(object):
 
 
 		def build(self):
-				self.fft = None	# Add a handle to this so we can set it later
+				self.fft = None	 # Add a handle to this so we can set it later
+				self.saver = None  # Model saver
 				self.add_placeholders()
 				self.pred = self.add_prediction_op() 
 				self.loss = self.add_loss_op(self.pred)
@@ -415,8 +460,8 @@ class ANNModel(object):
 				return inputs, labels
 
 
-def main():
-	"""Main entry method for this file."""
+def train():
+	"""Training method for this file."""
 	config = Config()
 
 	# Tell TensorFlow that the model will be built into the default Graph.
@@ -432,14 +477,45 @@ def main():
 			inputs, labels = model.preprocess_data(config)
 			print "Finished preprocessing data"
 
+			train_inputs = inputs[0:len(inputs)-200]  # Gets all but the last 200 examples 
+			train_labels = labels[0:len(labels)-200]
+
 			# Create a session for running Ops in the Graph
 			with tf.Session() as sess:
 					# Run the Op to initialize the variables 
 					sess.run(init)
 					# Fit the model
-					losses = model.optimize(sess, inputs, labels)
+					losses = model.optimize(sess, train_inputs, train_labels)
+
+
+def validate():
+	config = Config()
+
+	# Tell TensorFlow that the model will be built into the default Graph.
+  # (not required but good practice)
+  logs_path = "tensorboard/" + strftime("%Y_%m_%d_%H_%M_%S", gmtime())
+
+	with tf.Graph().as_default():
+      model = ANNModel(config)
+      init = tf.global_variables_initializer()
+
+      print "Preprocessing data ..."
+      inputs, labels = model.preprocess_data(config)
+			print "Finished preprocessing data"
+
+			val_inputs = inputs[len(inputs)-200:]
+			val_labels = labels[len(labels)-200:]
+
+			# Create a session for running Ops in the Graph
+      with tf.Session() as sess:
+				# Run the Op to initialize the variables 
+      	sess.run(init)
+
+				model_dir = "saved_models"
+				model_name = ""
+				model.validate(sess, train_inputs, train_labels, model_dir, model_name) 
 
 
 if __name__ == "__main__":
-		main()
+		train()
 
