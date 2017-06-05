@@ -14,16 +14,26 @@ import copy
 import sounddevice as sd
 
 
-def get_minibatches(data, size):
-    copied = copy.deepcopy(data)
-    minibatches = list()
-    random.shuffle(copied)
+def get_minibatches(data_a, data_b, size):
+    indexes = np.arange(0, len(data_a))
+    np.random.shuffle(indexes)
+    shuffled_a = list()
+    shuffled_b = list()
     i = 0
-    while i < len(copied):
-        minibatch = copied[i:i+size]
-        minibatches.append(minibatch)
+    while i < len(indexes)-1:
+        minibatch_a = list()
+        minibatch_b = list()
+        for j in range(0, size):
+            if i + j >= len(indexes): # done with last minibatch
+                break
+            minibatch_a.append(data_a[indexes[i+j]])
+            minibatch_b.append(data_b[indexes[i+j]])
         i += size
-    return minibatches
+        shuffled_a.append(minibatch_a)
+        shuffled_b.append(minibatch_b)
+
+    return np.array(shuffled_a), np.array(shuffled_b)
+
 
 def complex_to_float_tensor(input_tensor):
     # Concatenates the complex component after the real component along the last axis.
@@ -61,23 +71,8 @@ def decode(encoder, current_input, max_num_frames, num_samples_per_frame, state_
 def corrupt(x):
     return tf.multiply(x, tf.cast(tf.random_uniform(shape=tf.shape(x), minval=0, maxval=2, dtype=tf.float32), tf.float32))
 
-def output_wave_files(predicted_batch, true_target_batch):
-    """Outputs and saves a single batch of wavefiles from their MFCC features. 
-
-    Args:
-        predicted_mfccs_batch: A np.ndarray (Tensorflow evaluated tensor) of shape 
-            (batch_size, max_num_frames, num_mfcc_coeffs)
-        true_target_mfccs_batch: A np.ndarray of shape (batch_size, max_num_frames, num_mfcc_coeffs)
-    """
-    # only outputting 1 wavefile in the batch, because otherwise it takes too long
-    for i in range(min(1, predicted_batch.shape[0])):
-        print "Converting wavefile ", i
-        predicted = predicted_batch[i]
-        target = true_target_batch[i]
-        output_wave_file(predicted, filename='autoencoder_pred_' + str(i))   
-        output_wave_file(target, filename='autoencoder_input_' + str(i))
-
 def collapse(multidim):
+    print multidim.shape
     final = np.zeros(multidim.shape[0] * multidim.shape[1])
     for i in range(0, multidim.shape[0]):
         for j in range(0, multidim.shape[1]):
@@ -92,24 +87,32 @@ def output_wave_file(predicted, filename):
         predicted_mfccs: A np.ndarray (Tensorflow evaluated tensor) of shape 
             (max_num_frames, num_mfcc_coeffs)
     """
+    print 'input to output_wave_files', predicted.shape, predicted.dtype
+
     # Concatenate all the FFT values into a 1D array
-    predicted_ffts = collapse(predicted)
+    #predicted_ffts = collapse(predicted)
+    predicted_ffts = np.reshape(predicted, (-1,))  # concatenate all the fft values together
+    print 'predicted_ffts', predicted_ffts.shape, predicted_ffts.dtype
    
     # Get rid of the trailing zeros 
     predicted_ffts = np.trim_zeros(predicted_ffts, 'b')
-    
+    print 'predicted_ffts trimmed', predicted_ffts.shape, predicted_ffts.dtype
     # Do the inverse FFT to the predicted data, and only consider its real values for playback
     inverted_wav_data = ifft(predicted_ffts)
+    print 'inverted_wav_data', inverted_wav_data.shape, inverted_wav_data.dtype
+
     inverted_wav_data = inverted_wav_data.real
 
+    print 'inverted_wav_data real', inverted_wav_data.shape, inverted_wav_data.dtype
     sd.play(inverted_wav_data, 16000.0)
     inverted_wav_data = np.squeeze(np.array(inverted_wav_data))
 
+    print 'inverted_wav_data squeezed', inverted_wav_data.shape, inverted_wav_data.dtype
     # Scales the waveform to be between -1 and 1
     maxVec = np.max(inverted_wav_data)
     minVec = np.min(inverted_wav_data)
     inverted_wav_data = ((inverted_wav_data - minVec) / (maxVec - minVec) - 0.5) * 2
-
+    print 'inverted_wav_data to write', inverted_wav_data.shape, inverted_wav_data.dtype
     wav.write(filename + '.wav', 16000.0, inverted_wav_data)
 
 
@@ -142,9 +145,10 @@ def preprocess_data(num_samples_per_frame, window_len, window_step, max_num_fram
     TARGET_DIR = '../data/cmu_arctic/scottish-english-male-awb/wav/'    
     index = 0
     for source_fname, target_fname in zip(os.listdir(SOURCE_DIR), os.listdir(TARGET_DIR)):
-        if index >= 5:
+        if index >= 200:
             break
         index += 1
+        print source_fname
 
         if source_fname == '.DS_Store' or target_fname == '.DS_Store':
             continue
@@ -163,7 +167,8 @@ def preprocess_data(num_samples_per_frame, window_len, window_step, max_num_fram
         target_padded_frames = np.reshape(target_padded_frames, (max_num_frames, num_samples_per_frame))
 
         inputs.append(source_padded_frames) 
-        labels.append(target_padded_frames) 
+        labels.append(target_padded_frames)
+        print 'data shape', source_padded_frames.shape, source_padded_frames.dtype 
 
     return inputs, labels
 
@@ -184,7 +189,7 @@ def autoencode():
     num_features = max_num_frames * num_samples_per_frame 
     state_size_1 = 50 
     state_size_2 = 50 
-    epochs = 10
+    epochs = 30
 
     logs_path = "tensorboard/" + strftime("%Y_%m_%d_%H_%M_%S", gmtime())
 
@@ -199,9 +204,10 @@ def autoencode():
     sess.run(tf.global_variables_initializer())
 
     # learn weights for the first accent
+    print 'TRAINING ON ACCENT A'
     for epoch_i in range(epochs):
         n_minibatches, total_loss = 0, 0
-        minibatches = get_minibatches(accent_a, batch_size)
+        minibatches, _ = get_minibatches(accent_a, accent_b, batch_size)
         for batch in minibatches:
             sess.run(optimizer1, feed_dict={ae1['input']: batch, ae1['corrupt_prob']: [1.0]})
             total_loss += ae1['cost'].eval(session=sess, feed_dict={ae1['input']: batch, ae1['corrupt_prob']: [1.0]})
@@ -213,9 +219,10 @@ def autoencode():
     encoder = ae1['encoder']
 
     # learn weights for the second accent
+    print 'TRAINING ON ACCENT B'
     for epoch_i in range(epochs):
         n_minibatches, total_loss = 0, 0
-        minibatches = get_minibatches(accent_a, batch_size)
+        minibatches, _ = get_minibatches(accent_b, accent_a, batch_size)
         for batch in minibatches:
             sess.run(optimizer2, feed_dict={ae2['input']: batch, ae2['corrupt_prob']: [1.0]})
             total_loss += ae2['cost'].eval(session=sess, feed_dict={ae2['input']: batch, ae2['corrupt_prob']: [1.0]})
@@ -226,10 +233,12 @@ def autoencode():
     decoder = ae2['encoder']
 
 
-    minibatches = get_minibatches(accent_a, batch_size)
-    for i, raw_batch in enumerate(minibatches):
+    print 'EVALUATING CONVERSION FROM A TO B'
+    minibatches_a, minibatches_b = get_minibatches(accent_a, accent_b, batch_size)
+    for i in range(0, len(minibatches_a)):
+        raw_batch = minibatches_a[i]
+        target_batch = minibatches_b[i]
         batch = complex_to_float_numpy(raw_batch)
-        print batch[0].shape
         encode_W1 = encoder[1].eval(session=sess)
         encode_W2 = encoder[0].eval(session=sess)
         decode_W1 = np.transpose(decoder[0].eval(session=sess))
@@ -241,7 +250,8 @@ def autoencode():
         fft_preds_reals = tf.slice(prediction, [0, 0, 0], [-1, max_num_frames, num_samples_per_frame]) 
         fft_preds_complexes = tf.slice(prediction, [0, 0, num_samples_per_frame], [-1, max_num_frames, num_samples_per_frame])
         pred = tf.complex(fft_preds_reals, fft_preds_complexes).eval(session=sess)
-        output_wave_files(pred, batch)
+        output_wave_file(pred[0], filename='autoencoder_pred_'+str(i))   
+        output_wave_file(target_batch[0], filename='autoencoder_input_'+str(i))
 
 autoencode()
 
