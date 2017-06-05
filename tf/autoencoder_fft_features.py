@@ -72,11 +72,17 @@ def output_wave_files(predicted_batch, true_target_batch):
     # only outputting 1 wavefile in the batch, because otherwise it takes too long
     for i in range(min(1, predicted_batch.shape[0])):
         print "Converting wavefile ", i
-        predicted = predicted_batch[i,:,:]
+        predicted = predicted_batch[i]
         target = true_target_batch[i]
-
         output_wave_file(predicted, filename='autoencoder_pred_' + str(i))   
         output_wave_file(target, filename='autoencoder_input_' + str(i))
+
+def collapse(multidim):
+    final = np.zeros(multidim.shape[0] * multidim.shape[1])
+    for i in range(0, multidim.shape[0]):
+        for j in range(0, multidim.shape[1]):
+            final[i+j] = multidim[i][j]
+    return final
 
 
 def output_wave_file(predicted, filename):
@@ -87,13 +93,13 @@ def output_wave_file(predicted, filename):
             (max_num_frames, num_mfcc_coeffs)
     """
     # Concatenate all the FFT values into a 1D array
-    predicted_ffts = np.reshape(predicted, (-1,))  # Concatenate all the fft values together
-
+    predicted_ffts = collapse(predicted)
+   
     # Get rid of the trailing zeros 
     predicted_ffts = np.trim_zeros(predicted_ffts, 'b')
-
+    
     # Do the inverse FFT to the predicted data, and only consider its real values for playback
-    inverted_wav_data = ifft(predicted_ffts.astype(np.float32))
+    inverted_wav_data = ifft(predicted_ffts)
     inverted_wav_data = inverted_wav_data.real
 
     sd.play(inverted_wav_data, 16000.0)
@@ -223,6 +229,7 @@ def autoencode():
     minibatches = get_minibatches(accent_a, batch_size)
     for i, raw_batch in enumerate(minibatches):
         batch = complex_to_float_numpy(raw_batch)
+        print batch[0].shape
         encode_W1 = encoder[1].eval(session=sess)
         encode_W2 = encoder[0].eval(session=sess)
         decode_W1 = np.transpose(decoder[0].eval(session=sess))
@@ -233,7 +240,7 @@ def autoencode():
         prediction = batch_multiply_by_matrix_numpy(h3, decode_W2)
         fft_preds_reals = tf.slice(prediction, [0, 0, 0], [-1, max_num_frames, num_samples_per_frame]) 
         fft_preds_complexes = tf.slice(prediction, [0, 0, num_samples_per_frame], [-1, max_num_frames, num_samples_per_frame])
-        pred = tf.complex(fft_preds_reals, fft_preds_complexes)
+        pred = tf.complex(fft_preds_reals, fft_preds_complexes).eval(session=sess)
         output_wave_files(pred, batch)
 
 autoencode()
