@@ -538,5 +538,5 @@ def run(train=True):
 
 
 if __name__ == "__main__":
-		run(train=False)
+		run(train=True)
 
