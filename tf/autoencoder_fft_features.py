@@ -45,25 +45,29 @@ def complex_to_float_numpy(input_array):
         res.append(np.concatenate([entry.real, entry.imag], axis=-1))
     return res
 
-def encode(current_input, max_num_frames, num_samples_per_frame, state_size_1, state_size_2, version):
+def encode(current_input, num_samples_per_frame, state_size_1, state_size_2, version):
     xavier = tf.contrib.layers.xavier_initializer()
 
-    W1 = tf.get_variable("W1"+version, shape=(2*num_samples_per_frame, state_size_1), dtype=tf.float32, initializer=xavier) 
-    W2 = tf.get_variable("W2"+version, shape=(state_size_1, state_size_2), dtype=tf.float32, initializer=xavier) 
+    W1 = tf.get_variable('W1'+version, shape=(2*num_samples_per_frame, state_size_1), dtype=tf.float32, initializer=xavier) 
+    W2 = tf.get_variable('W2'+version, shape=(state_size_1, state_size_2), dtype=tf.float32, initializer=xavier) 
    
-    h1 = tf.tanh(batch_multiply_by_matrix(batch=current_input, matrix=W1))
-    h2 = tf.tanh(batch_multiply_by_matrix(batch=h1, matrix=W2))
+    b1 = tf.get_variable('b1'+version, shape=[state_size_1], initializer = tf.constant_initializer(0))
+    b2 = tf.get_variable('b2'+version, shape=[state_size_2], initializer = tf.constant_initializer(0))
+
+    h1 = tf.tanh(batch_multiply_by_matrix(batch=current_input, matrix=W1)) + b1
+    h2 = tf.tanh(batch_multiply_by_matrix(batch=h1, matrix=W2)) + b2
 
     encoder = [W1, W2]
     return encoder, h2
 
 
-def decode(encoder, current_input, max_num_frames, num_samples_per_frame, state_size_1, state_size_2):
-    encoder.reverse()
-    W1 = tf.transpose(encoder[0])
-    W2 = tf.transpose(encoder[1])
-    h1 = tf.tanh(batch_multiply_by_matrix(batch=current_input, matrix=W1))
-    fft_preds_real_2x = batch_multiply_by_matrix(batch=h1, matrix=W2)
+def decode(encoder, current_input, num_samples_per_frame, state_size_1, state_size_2, version):
+    W1 = tf.transpose(encoder[1])
+    W2 = tf.transpose(encoder[0])
+    b1 = tf.get_variable('b3'+version, shape=[state_size_2], initializer = tf.constant_initializer(0))
+    b2 = tf.get_variable('b4'+version, shape=[2*num_samples_per_frame], initializer = tf.constant_initializer(0))
+    h1 = tf.tanh(batch_multiply_by_matrix(batch=current_input, matrix=W1)) + b1
+    fft_preds_real_2x = batch_multiply_by_matrix(batch=h1, matrix=W2) + b2
 
     return fft_preds_real_2x
 
@@ -71,8 +75,8 @@ def decode(encoder, current_input, max_num_frames, num_samples_per_frame, state_
 def corrupt(x):
     return tf.multiply(x, tf.cast(tf.random_uniform(shape=tf.shape(x), minval=0, maxval=2, dtype=tf.float32), tf.float32))
 
+
 def collapse(multidim):
-    print multidim.shape
     final = np.zeros(multidim.shape[0] * multidim.shape[1])
     for i in range(0, multidim.shape[0]):
         for j in range(0, multidim.shape[1]):
@@ -87,32 +91,21 @@ def output_wave_file(predicted, filename):
         predicted_mfccs: A np.ndarray (Tensorflow evaluated tensor) of shape 
             (max_num_frames, num_mfcc_coeffs)
     """
-    print 'input to output_wave_files', predicted.shape, predicted.dtype
 
-    # Concatenate all the FFT values into a 1D array
-    #predicted_ffts = collapse(predicted)
     predicted_ffts = np.reshape(predicted, (-1,))  # concatenate all the fft values together
-    print 'predicted_ffts', predicted_ffts.shape, predicted_ffts.dtype
    
-    # Get rid of the trailing zeros 
     predicted_ffts = np.trim_zeros(predicted_ffts, 'b')
-    print 'predicted_ffts trimmed', predicted_ffts.shape, predicted_ffts.dtype
-    # Do the inverse FFT to the predicted data, and only consider its real values for playback
     inverted_wav_data = ifft(predicted_ffts)
-    print 'inverted_wav_data', inverted_wav_data.shape, inverted_wav_data.dtype
 
     inverted_wav_data = inverted_wav_data.real
 
-    print 'inverted_wav_data real', inverted_wav_data.shape, inverted_wav_data.dtype
     sd.play(inverted_wav_data, 16000.0)
     inverted_wav_data = np.squeeze(np.array(inverted_wav_data))
 
-    print 'inverted_wav_data squeezed', inverted_wav_data.shape, inverted_wav_data.dtype
     # Scales the waveform to be between -1 and 1
     maxVec = np.max(inverted_wav_data)
     minVec = np.min(inverted_wav_data)
     inverted_wav_data = ((inverted_wav_data - minVec) / (maxVec - minVec) - 0.5) * 2
-    print 'inverted_wav_data to write', inverted_wav_data.shape, inverted_wav_data.dtype
     wav.write(filename + '.wav', 16000.0, inverted_wav_data)
 
 
@@ -122,8 +115,8 @@ def autoencoder(max_num_frames, num_samples_per_frame, state_size_1, state_size_
     corrupt_prob = tf.placeholder(tf.float32, [1])
     current_input = corrupt(real) * corrupt_prob + real * (1 - corrupt_prob)
 
-    encoder, output = encode(current_input, max_num_frames, num_samples_per_frame, state_size_1, state_size_2, version)
-    decoded = decode(encoder, output, max_num_frames, num_samples_per_frame, state_size_1, state_size_2)
+    encoder, output = encode(current_input, num_samples_per_frame, state_size_1, state_size_2, version)
+    decoded = decode(encoder, output, num_samples_per_frame, state_size_1, state_size_2, version)
     
     loss = tf.losses.mean_squared_error(decoded, real) 
     loss = tf.reduce_mean(loss)
@@ -168,14 +161,13 @@ def preprocess_data(num_samples_per_frame, window_len, window_step, max_num_fram
 
         inputs.append(source_padded_frames) 
         labels.append(target_padded_frames)
-        print 'data shape', source_padded_frames.shape, source_padded_frames.dtype 
 
     return inputs, labels
 
 
 def autoencode():
-    batch_size = 5
-    lr = 1e-3
+    batch_size = 10
+    lr = 1e-2
     momentum = 0.3
    
     sample_rate = 16000.0
@@ -187,9 +179,9 @@ def autoencode():
     max_num_frames = max_num_samples / num_samples_per_frame     # = 1064 because the max recording has 85120 samples, and 85120 / 80 = 1064 
 
     num_features = max_num_frames * num_samples_per_frame 
-    state_size_1 = 50 
-    state_size_2 = 50 
-    epochs = 30
+    state_size_1 = 500 
+    state_size_2 = 500 
+    epochs = 100
 
     logs_path = "tensorboard/" + strftime("%Y_%m_%d_%H_%M_%S", gmtime())
 
@@ -205,6 +197,8 @@ def autoencode():
 
     # learn weights for the first accent
     print 'TRAINING ON ACCENT A'
+    prev_loss = 0
+    initial = 0
     for epoch_i in range(epochs):
         n_minibatches, total_loss = 0, 0
         minibatches, _ = get_minibatches(accent_a, accent_b, batch_size)
@@ -213,13 +207,21 @@ def autoencode():
             total_loss += ae1['cost'].eval(session=sess, feed_dict={ae1['input']: batch, ae1['corrupt_prob']: [1.0]})
             decoded = ae1['decoded'].eval(session=sess, feed_dict={ae1['input']: batch, ae1['corrupt_prob']: [1.0]})
 
+            output_wave_file(decoded[0], filename='a_pred_'+str(epoch_i))   
+            output_wave_file(batch[0], filename='a_input_'+str(epoch_i))
             n_minibatches += 1
-        print epoch_i, total_loss/n_minibatches
+        if epoch_i == 0:
+            initial = total_loss
+
+        print epoch_i, (total_loss - prev_loss)/n_minibatches, 'overall:', (total_loss - initial)/n_minibatches, 'currently:', total_loss
+        prev_loss = total_loss
 
     encoder = ae1['encoder']
 
     # learn weights for the second accent
     print 'TRAINING ON ACCENT B'
+    prev_loss = 0
+    initial = 0
     for epoch_i in range(epochs):
         n_minibatches, total_loss = 0, 0
         minibatches, _ = get_minibatches(accent_b, accent_a, batch_size)
@@ -229,7 +231,15 @@ def autoencode():
             decoded = ae2['decoded'].eval(session=sess, feed_dict={ae2['input']: batch, ae2['corrupt_prob']: [1.0]})
 
             n_minibatches += 1
-        print epoch_i, total_loss/n_minibatches
+            output_wave_file(decoded[0], filename='b_pred_'+str(epoch_i))   
+            output_wave_file(batch[0], filename='b_input_'+str(epoch_i))
+
+        if epoch_i == 0:
+            initial = total_loss
+
+        print epoch_i, (total_loss - prev_loss)/n_minibatches, 'overall:', (total_loss - initial)/n_minibatches, 'currently:', total_loss
+        prev_loss = total_loss
+
     decoder = ae2['encoder']
 
 
@@ -239,10 +249,10 @@ def autoencode():
         raw_batch = minibatches_a[i]
         target_batch = minibatches_b[i]
         batch = complex_to_float_numpy(raw_batch)
-        encode_W1 = encoder[1].eval(session=sess)
-        encode_W2 = encoder[0].eval(session=sess)
-        decode_W1 = np.transpose(decoder[0].eval(session=sess))
-        decode_W2 = np.transpose(decoder[1].eval(session=sess))
+        encode_W1 = encoder[0].eval(session=sess)
+        encode_W2 = encoder[1].eval(session=sess)
+        decode_W1 = np.transpose(decoder[1].eval(session=sess))
+        decode_W2 = np.transpose(decoder[0].eval(session=sess))
         h1 = np.tanh(batch_multiply_by_matrix_numpy(np.array(batch), encode_W1))
         h2 = np.tanh(batch_multiply_by_matrix_numpy(h1, encode_W2))
         h3 = np.tanh(batch_multiply_by_matrix_numpy(h2, decode_W1))

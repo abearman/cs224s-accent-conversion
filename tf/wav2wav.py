@@ -22,16 +22,15 @@ class Config(object):
 		"""
 		batch_size = 10
 		n_epochs = 1000
-		lr = 1e-3
+		lr = 1e-4
 		momentum = 0.3
 
 		sample_rate = 16000.0
-		num_filters = 100
 
 		wav_len = 64000
 
-		state_size_1 = 1000 
-		state_size_2 = 1000
+		state_size_1 = 5000 
+		state_size_2 = 5000
 
 		dropout_keep_prob = 1.0 # 0.8
 		logs_path = "tensorboard/wav_to_wav/" + strftime("%Y_%m_%d_%H_%M_%S", gmtime())
@@ -158,7 +157,7 @@ class Wav2Wav(object):
 				return train_op
 
 		
-		def output_wave_files(self, predicted_batch, true_target_batch):
+		def output_wave_files(self, predicted_batch, true_target_batch, true_source_batch):
 				"""Outputs and saves a single batch of wavefiles from their MFCC features. 
 
 				Args:
@@ -171,9 +170,13 @@ class Wav2Wav(object):
 					print "Converting wavefile ", i
 					predicted = predicted_batch[i,:]
 					target = true_target_batch[i,:]
-					wav.write('predicted_'+str(i)+'.wav', self.config.sample_rate, predicted)
-					wav.write('target_'+str(i)+'.wav', self.config.sample_rate, target)
-
+					source = true_source_batch[i,:]
+					wav.write('wav2wav_predicted_'+str(i)+'.wav', self.config.sample_rate, predicted)
+					wav.write('wav2wav_target_'+str(i)+'.wav', self.config.sample_rate, target)
+					wav.write('wav2wav_source_'+str(i)+'.wav', self.config.sample_rate, source)
+					print 'wrote to predicted', i
+					print 'wrote to target', i
+					print 'wrote to source', i
 
 
 		def train_on_batch(self, sess, inputs_batch, labels_batch, should_output_wavefiles):
@@ -197,7 +200,8 @@ class Wav2Wav(object):
 				if should_output_wavefiles:
 					predicted_batch = self.predicted.eval(session=sess, feed_dict=feed)
 					true_target_batch = self.labels_placeholder.eval(session=sess, feed_dict=feed)
-					self.output_wave_files(predicted_batch, true_target_batch)
+					true_source_batch = self.input_placeholder.eval(session=sess, feed_dict=feed)
+					self.output_wave_files(predicted_batch, true_target_batch, true_source_batch)
 
 				return loss, summary 
 
@@ -252,10 +256,6 @@ class Wav2Wav(object):
 
 				losses = []
 
-				print inputs[0].shape
-				print labels[0].shape
-				print len(inputs)
-				print len(labels)
 				for epoch in range(self.config.n_epochs):
 						start_time = time()
 
@@ -287,7 +287,6 @@ class Wav2Wav(object):
 
 
 		def build(self):
-				self.mfcc = None	# Add a handle to this so we can set it later
 				self.add_placeholders()
 				self.pred = self.add_prediction_op() 
 				self.loss = self.add_loss_op(self.pred)
