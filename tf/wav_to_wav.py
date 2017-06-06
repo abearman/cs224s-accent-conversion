@@ -20,8 +20,8 @@ class Config(object):
 		information parameters. Model objects are passed a Config() object at
 		instantiation.
 		"""
-		batch_size = 5
-		n_epochs = 100000
+		batch_size = 10
+		n_epochs = 1000
 		lr = 1e-3
 		momentum = 0.3
 
@@ -30,8 +30,8 @@ class Config(object):
 
 		wav_len = 64000
 
-		state_size_1 = 100 
-		state_size_2 = 100
+		state_size_1 = 1000 
+		state_size_2 = 1000
 
 		dropout_keep_prob = 1.0 # 0.8
 		logs_path = "tensorboard/wav_to_wav/" + strftime("%Y_%m_%d_%H_%M_%S", gmtime())
@@ -334,7 +334,7 @@ class Wav2Wav(object):
 				SOURCE_DIR = '../data/cmu_arctic/scottish-english-male-awb/reconstructed_wav/'
 				index = 0
 				for source_fname, target_fname in zip(os.listdir(SOURCE_DIR), os.listdir(TARGET_DIR)):
-					if index >= 100:
+					if index >= 10:
 						break
 					index += 1
 
