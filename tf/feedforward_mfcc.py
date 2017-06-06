@@ -474,8 +474,8 @@ class ANNModel(object):
 				labels = []	
 				
 				DATA_DIR = '../data/cmu_arctic/'
-				SOURCE_NAME = 'us-english-male-bdl'
-				TARGET_NAME = 'scottish-english-male-awb'
+				SOURCE_NAME = 'us-english-female-clb'
+				TARGET_NAME = 'us-english-male-bdl'
 				SOURCE_WAV_DIR = DATA_DIR + SOURCE_NAME + '/wav/'
 				TARGET_WAV_DIR = DATA_DIR + TARGET_NAME + '/wav/' 
 				MFCC_PAIRS_FILE = 'preprocessed_mfccs/' + SOURCE_NAME + '_' + TARGET_NAME + '.pickle'	
@@ -511,6 +511,11 @@ def run(train=True):
 			print "Preprocessing data ..."
 			inputs, labels = model.preprocess_data(config)
 			print "Finished preprocessing data"
+
+			# Randomize data ordering to make sure train/val are balanced
+			together = list(zip(inputs, labels))
+			random.shuffle(together)
+			inputs, labels = zip(*together)
 
 			# Create a session for running Ops in the Graph
 			with tf.Session() as sess:
