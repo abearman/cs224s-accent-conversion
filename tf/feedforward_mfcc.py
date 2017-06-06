@@ -5,6 +5,7 @@ import random
 import matlab.engine
 import math
 import datetime
+import pickle
 
 import scipy.io.wavfile as wav
 from python_speech_features import mfcc
@@ -42,9 +43,9 @@ class Config(object):
 		information parameters. Model objects are passed a Config() object at
 		instantiation.
 		"""
-		batch_size = 5
+		batch_size = 16 
 		n_epochs = 100000
-		lr = 1e-2
+		lr = 1e-3
 		momentum = 0.3
 
 		max_num_frames = 1220  # This is the maximum length of any warped time series in the dataset 
@@ -56,8 +57,8 @@ class Config(object):
 		window_step = 0.005  # 5 ms	
 
 		num_features = max_num_frames * num_mfcc_coeffs 
-		state_size_1 = 50 
-		state_size_2 = 50 
+		state_size_1 = 100 
+		state_size_2 = 100
 		#state_size_3 = 50
 		#state_size_4 = 25
 		dropout_keep_prob = 0.8
@@ -197,8 +198,10 @@ class ANNModel(object):
 				"""
 				logSpecDbConst = 10.0 / math.log(10.0) * math.sqrt(2.0)
 				diff = features - true_features
+				diff = diff[:,1:]  # Ignore the 0-th coefficient
+				print "diff shape: ", diff.shape
 				mcd_cols = np.sqrt( (diff*diff).sum(axis=0) )
-				score = np.sum(mcd_cols)
+				score = np.sum(mcd_cols) / diff.shape[0]
 				return score
 
 
@@ -375,8 +378,8 @@ class ANNModel(object):
 				"""
 				# Only need to restore model if we're not validating during training
 				if (model_dir is not None) and (model_name is not None): 
-					self.saver = tf.train.import_meta_graph(model_path + model_name + ".meta")
-					self.saver.restore(sess, model_path + model_name)
+					self.saver = tf.train.import_meta_graph(model_dir + model_name + ".meta")
+					self.saver.restore(sess, model_dir + model_name)
 
 				mcds = []
 				step = 50
@@ -424,32 +427,21 @@ class ANNModel(object):
 				self.merged_summary_op = self.add_summary_op()
 
 
-		def preprocess_data(self, config):
-				"""Processes the training data and returns MFCC vectors for all of them.
-				Args:
-					config: the Config object with various parameters specified
-				Returns:
-					train_data:	A list of features, one for each training example: accent 1 padded MFCC frames
-					train_labels: A list of features, one for each training example: accent 2 padded MFCC frames
-				"""
-				inputs = [] 
-				labels = []	
-				
-				SOURCE_DIR = '../data/cmu_arctic/scottish-english-male-awb/wav/'	
-				TARGET_DIR = '../data/cmu_arctic/us-english-male-bdl/wav/'
-				#TARGET_DIR = '../data/cmu_arctic/scottish-english-male-awb/wav/'	
-				#TARGET_DIR = '../data/cmu_arctic/indian-english-male-ksp/wav/'
+		def process_data(self, source_input_dir, target_input_dir):
+				inputs = []
+				labels = []
+
 				index = 0
-				for source_fname, target_fname in zip(os.listdir(SOURCE_DIR), os.listdir(TARGET_DIR)):
+				for source_fname, target_fname in zip(os.listdir(source_input_dir), os.listdir(target_input_dir)):
 					#if index >= 20:
-					#	break
+					# break
 					#index += 1
 
 					if source_fname == '.DS_Store' or target_fname == '.DS_Store':
 						continue
 
-					(source_sample_rate, source_wav_data) = wav.read(SOURCE_DIR + source_fname) 
-					(target_sample_rate, target_wav_data) = wav.read(TARGET_DIR + target_fname)
+					(source_sample_rate, source_wav_data) = wav.read(source_input_dir + source_fname)
+					(target_sample_rate, target_wav_data) = wav.read(target_input_dir + target_fname)
 
 					# appendEnergy is False because we want to keep the 0th coefficient
 					source_mfcc_features = np.array(mfcc(source_wav_data, samplerate=source_sample_rate, numcep=self.config.num_mfcc_coeffs,
@@ -461,20 +453,43 @@ class ANNModel(object):
 					source_mfcc_features, target_mfcc_features = get_dtw_series(source_mfcc_features, target_mfcc_features)
 
 					# Pads the MFCC feature matrices (rows) to length config.max_num_frames
-					source_padded_frames, _ = pad_sequence(source_mfcc_features, config.max_num_frames)
-					target_padded_frames, _ = pad_sequence(target_mfcc_features, config.max_num_frames)
+					source_padded_frames, _ = pad_sequence(source_mfcc_features, self.config.max_num_frames)
+					target_padded_frames, _ = pad_sequence(target_mfcc_features, self.config.max_num_frames)
 
-					#if index < 20:
-					#	self.output_wave_file(source_padded_frames, filename='src' + str(index))
-					#	self.output_wave_file(target_padded_frames, filename='tgt' + str(index))
-						#wav.write('source' + str(index) + '.wav', self.config.sample_rate, source_wav_data)
-						#wav.write('target' + str(index) + '.wav', self.config.sample_rate, target_wav_data)
-						#self.eng.soundsc(matlab.double(source_wav_data.tolist()), self.config.sample_rate, nargout=0)
-						#self.eng.soundsc(matlab.double(target_wav_data.tolist()), self.config.sample_rate, nargout=0)
-					#index += 1
+					inputs.append(source_padded_frames)
+					labels.append(target_padded_frames)
 
-					inputs.append(source_padded_frames) 
-					labels.append(target_padded_frames) 
+				return inputs, labels
+
+
+		def preprocess_data(self, config):
+				"""Processes the training data and returns MFCC vectors for all of them.
+				Args:
+					config: the Config object with various parameters specified
+				Returns:
+					train_data:	A list of features, one for each training example: accent 1 padded MFCC frames
+					train_labels: A list of features, one for each training example: accent 2 padded MFCC frames
+				"""
+				inputs = [] 
+				labels = []	
+				
+				DATA_DIR = '../data/cmu_arctic/'
+				SOURCE_NAME = 'us-english-male-bdl'
+				TARGET_NAME = 'scottish-english-male-awb'
+				SOURCE_WAV_DIR = DATA_DIR + SOURCE_NAME + '/wav/'
+				TARGET_WAV_DIR = DATA_DIR + TARGET_NAME + '/wav/' 
+				MFCC_PAIRS_FILE = 'preprocessed_mfccs/' + SOURCE_NAME + '_' + TARGET_NAME + '.pickle'	
+
+				if os.path.isfile(MFCC_PAIRS_FILE):
+					with open(MFCC_PAIRS_FILE, 'rb') as handle:
+						dictt = pickle.load(handle)
+						inputs = dictt['source']
+						labels = dictt['target']
+				else:
+					inputs, labels = self.process_data(SOURCE_WAV_DIR, TARGET_WAV_DIR)
+					dictt = {'source': inputs, 'target': labels}
+					with open(MFCC_PAIRS_FILE, 'wb') as handle:
+						pickle.dump(dictt, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 				return inputs, labels 
 
@@ -511,11 +526,12 @@ def run(train=True):
 					model.optimize(sess, train_inputs, train_labels, val_inputs, val_labels)
 
 				else: # Validate
-					model_dir = "saved_models"
-					model_name = ""
-					model.validate(sess, train_inputs, train_labels, model_dir, model_name)
+					model_dir = "saved_models/us_male_to_scottish/"
+					model_name = "mfcc_model_epoch_5699"
+					mcd_score = model.validate(sess, val_inputs, val_labels, model_dir, model_name)
+					print "mcd_score: ", mcd_score
 
 
 if __name__ == "__main__":
-		run(train=True)
+		run(train=False)
 
