@@ -199,7 +199,6 @@ class ANNModel(object):
 				logSpecDbConst = 10.0 / math.log(10.0) * math.sqrt(2.0)
 				diff = features - true_features
 				diff = diff[:,1:]  # Ignore the 0-th coefficient
-				print "diff shape: ", diff.shape
 				mcd_cols = np.sqrt( (diff*diff).sum(axis=0) )
 				score = np.sum(mcd_cols) / diff.shape[0]
 				return score
@@ -218,11 +217,11 @@ class ANNModel(object):
 					print "Converting wavefile ", i
 					predicted_mfccs = predicted_mfccs_batch[i,:,:]
 					target_mfccs = true_target_mfccs_batch[i,:,:]
-					self.output_wave_file(predicted_mfccs, filename='predicted_wav' + str(i))	
-					self.output_wave_file(target_mfccs, filename='true_wav' + str(i))
+					self.output_wave_file(predicted_mfccs, 'predicted_wav' + str(i))	
+					self.output_wave_file(target_mfccs, 'true_wav' + str(i))
 
 
-		def output_wave_file(self, predicted_mfccs, filename='predicted_wav'):
+		def output_wave_file(self, predicted_mfccs, filename):
 				"""Outputs and saves a single wavefile from its MFCC features. 
 
 				Args:
@@ -309,13 +308,17 @@ class ANNModel(object):
 				return total_loss / n_minibatches, step_i 
 
 
-		def optimize(self, sess, train_inputs, train_labels, val_inputs, val_labels):
+		def optimize(self, sess, train_inputs, train_labels, val_inputs, val_labels, model_dir, model_name):
 				"""Fit model on provided data.
 
 				Args:
 						sess: tf.Session()
-						inputs: A list of length num_examples with float np.ndarray entries of shape (max_num_frames, num_mfcc_coeffs) 
-						labels: A list of length num_examples with float np.ndarray entries of shape (max_num_frames, num_mfcc_coeffs)	
+						train_inputs: A list of length num_train_examples with float np.ndarray entries of shape (max_num_frames, num_mfcc_coeffs) 
+						train_labels: A list of length num_train_examples with float np.ndarray entries of shape (max_num_frames, num_mfcc_coeffs)	
+						val_inputs: A list of length num_val_examples with float np.ndarray entries of shape (max_num_frames, num_mfcc_coeffs) 
+						val_labels: A list of length num_val_examples with float np.ndarray entries of shape (max_num_frames, num_mfcc_coeffs)	
+						model_dir: The path of the model directory to save to
+						model_name: The name of the model to save to
 				Returns:
 						losses: list of losses per epoch
 				"""
@@ -342,7 +345,7 @@ class ANNModel(object):
 																									should_output_wavefiles_epoch)
 					
 						# Save model
-						self.saver.save(sess, "saved_models/mfcc_model_epoch_" + str(epoch))
+						self.saver.save(sess, model_dir + model_name + "_epoch_" + str(epoch))
 
 						duration = time() - start_time
 						print 'Epoch {:}: loss = {:.2f} ({:.3f} sec)'.format(epoch, average_loss, duration)
@@ -359,6 +362,7 @@ class ANNModel(object):
 
 				features_batch = self.mfcc.eval(feed_dict=feed, session=sess)
 				true_features_batch = labels_batch
+				self.output_wave_files(features_batch, np.array(true_features_batch))
 
 				mcds_for_batch = []
 				for i in range(len(true_features_batch)):
@@ -370,17 +374,12 @@ class ANNModel(object):
 				return mcds_for_batch	
 
 
-		def validate(self, sess, inputs, labels, model_dir=None, model_name=None):
+		def validate(self, sess, inputs, labels):
 				"""Evaluates the provided model on the provided validation data.
 				
 				Returns:
 					mcd: the MCD score for every input
 				"""
-				# Only need to restore model if we're not validating during training
-				if (model_dir is not None) and (model_name is not None): 
-					self.saver = tf.train.import_meta_graph(model_dir + model_name + ".meta")
-					self.saver.restore(sess, model_dir + model_name)
-
 				mcds = []
 				step = 50
 
@@ -462,10 +461,12 @@ class ANNModel(object):
 				return inputs, labels
 
 
-		def preprocess_data(self, config):
+		def preprocess_data(self, config, SOURCE_NAME, TARGET_NAME):
 				"""Processes the training data and returns MFCC vectors for all of them.
 				Args:
 					config: the Config object with various parameters specified
+					SOURCE_NAME: The name of the source accent (e.g., 'us-english-female-clb')
+					TARGET_NAME: The name of the target accent (e.g., 'us-english-male-bdl')
 				Returns:
 					train_data:	A list of features, one for each training example: accent 1 padded MFCC frames
 					train_labels: A list of features, one for each training example: accent 2 padded MFCC frames
@@ -474,8 +475,6 @@ class ANNModel(object):
 				labels = []	
 				
 				DATA_DIR = '../data/cmu_arctic/'
-				SOURCE_NAME = 'us-english-female-clb'
-				TARGET_NAME = 'us-english-male-bdl'
 				SOURCE_WAV_DIR = DATA_DIR + SOURCE_NAME + '/wav/'
 				TARGET_WAV_DIR = DATA_DIR + TARGET_NAME + '/wav/' 
 				MFCC_PAIRS_FILE = 'preprocessed_mfccs/' + SOURCE_NAME + '_' + TARGET_NAME + '.pickle'	
@@ -495,8 +494,20 @@ class ANNModel(object):
 
 
 
-def run(train=True):
-	"""Main entry point for this file."""
+def run(SOURCE_NAME, TARGET_NAME, MODEL_DIR, EXISTING_MODEL_NAME, MODEL_NAME_TO_SAVE, train=True, restore_model=False):
+	"""Main entry point for this file.
+	
+	Args:
+		SOURCE_NAME: The name of the source accent (e.g., 'us-english-female-clb')
+		TARGET_NAME: The name of the target accent (e.g., 'us-english-male-bdl')
+		MODEL_DIR: The path to the model directory (to save to if training, or load an existing model from if validating)
+		EXISTING_MODEL_NAME: The name of the model to restore (e.g., 'mfcc_model_epoch_4598')
+		MODEL_NAME_TO_SAVE: The name of the model to save to (e.g., 'mfcc_model')
+		train: a boolean that represents whether or not to train a new model 
+					 validate an existing model. True by default.
+		restore_model: a boolean that, if training, represents whether or not to restore the model from the given 
+									 model directory, MODEL_DIR, and model name, EXISTING_MODEL_NAME
+	"""
 	config = Config()
 
 	# Tell TensorFlow that the model will be built into the default Graph.
@@ -509,13 +520,8 @@ def run(train=True):
 			model.saver = tf.train.Saver()
 
 			print "Preprocessing data ..."
-			inputs, labels = model.preprocess_data(config)
+			inputs, labels = model.preprocess_data(config, SOURCE_NAME, TARGET_NAME)
 			print "Finished preprocessing data"
-
-			# Randomize data ordering to make sure train/val are balanced
-			together = list(zip(inputs, labels))
-			random.shuffle(together)
-			inputs, labels = zip(*together)
 
 			# Create a session for running Ops in the Graph
 			with tf.Session() as sess:
@@ -528,15 +534,26 @@ def run(train=True):
 				val_labels = labels[len(labels)-model.config.val_size:]
 
 				if train:
-					model.optimize(sess, train_inputs, train_labels, val_inputs, val_labels)
+					if restore_model:  # Otherwise, just create a new model if we're starting afresh
+						model.saver = tf.train.import_meta_graph(MODEL_DIR + EXISTING_MODEL_NAME + ".meta")
+						model.saver.restore(sess, MODEL_DIR + EXISTING_MODEL_NAME) 
+					model.optimize(sess, train_inputs, train_labels, val_inputs, val_labels, MODEL_DIR, MODEL_NAME_TO_SAVE)
 
 				else: # Validate
-					model_dir = "saved_models/us_male_to_scottish/"
-					model_name = "mfcc_model_epoch_5699"
-					mcd_score = model.validate(sess, val_inputs, val_labels, model_dir, model_name)
+					model.saver = tf.train.import_meta_graph(MODEL_DIR + EXISTING_MODEL_NAME + ".meta") 
+					model.saver.restore(sess, MODEL_DIR + EXISTING_MODEL_NAME) 
+					mcd_score = model.validate(sess, val_inputs, val_labels) 
 					print "mcd_score: ", mcd_score
 
 
 if __name__ == "__main__":
-		run(train=True)
+	SOURCE_NAME = 'us-english-female-clb'							# NEED TO SPECIFY: The name of the source accent
+	TARGET_NAME = 'us-english-male-bdl'								# NEED TO SPECIFY: The name of the target accent
+	MODEL_DIR = 'saved_models/us_female_to_male/'			# NEED TO SPECIFY: The relative model directory (to save to if training, 
+																										#									 or load an existing model from if validating) 
+	EXISTING_MODEL_NAME = 'mfcc_model_epoch_4568'			# NEED TO SPECIFY: The name of the existing model to load (either to continue training
+																										#									 or to evaluate) 
+	MODEL_NAME_TO_SAVE = 'mfcc_model'									# NEED TO SPECIFY: The name of the new model to save to during training
+
+	run(SOURCE_NAME, TARGET_NAME, MODEL_DIR, EXISTING_MODEL_NAME, MODEL_NAME_TO_SAVE, train=False, restore_model=False) 
 
