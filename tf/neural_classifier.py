@@ -285,7 +285,7 @@ class ANNModel(object):
 				return res
 
 
-		def preprocess_data(self, config):
+		def preprocess_data(self, config, SOURCE_DIR, TARGET_DIR=None):
 				"""Processes the training data and returns MFCC vectors for all of them.
 				Args:
 					config: the Config object with various parameters specified
@@ -296,37 +296,58 @@ class ANNModel(object):
 				inputs = [] 
 				labels = []	
 				
-				SOURCE_DIR = '../data/cmu_arctic/scottish-english-male-awb/wav/'	
-				TARGET_DIR = '../data/cmu_arctic/us-english-male-bdl/wav/'
 				index = 0
-				for source_fname, target_fname in zip(os.listdir(SOURCE_DIR), os.listdir(TARGET_DIR)):
-					#if index >= 100:
-					#	break
-					#index += 1
+				if TARGET_DIR:
+					for source_fname, target_fname in zip(os.listdir(SOURCE_DIR), os.listdir(TARGET_DIR)):
+						#if index >= 100:
+						#	break
+						#index += 1
 
-					if source_fname == '.DS_Store' or target_fname == '.DS_Store':
-						continue
+						if source_fname == '.DS_Store' or target_fname == '.DS_Store':
+							continue
 
-					(source_sample_rate, source_wav_data) = wav.read(SOURCE_DIR + source_fname) 
-					(target_sample_rate, target_wav_data) = wav.read(TARGET_DIR + target_fname)
+						(source_sample_rate, source_wav_data) = wav.read(SOURCE_DIR + source_fname) 
+						(target_sample_rate, target_wav_data) = wav.read(TARGET_DIR + target_fname)
 
-					source_mfcc_features = np.array(mfcc(source_wav_data, samplerate=source_sample_rate, numcep=self.config.num_mfcc_coeffs,
-																							 nfilt=self.config.num_filters, winlen=self.config.window_len, winstep=self.config.window_step))
-					target_mfcc_features = np.array(mfcc(target_wav_data, samplerate=target_sample_rate, numcep=self.config.num_mfcc_coeffs,
-																							 nfilt=self.config.num_filters, winlen=self.config.window_len, winstep=self.config.window_step))
+						source_mfcc_features = np.array(mfcc(source_wav_data, samplerate=source_sample_rate, numcep=self.config.num_mfcc_coeffs,
+																								 nfilt=self.config.num_filters, winlen=self.config.window_len, winstep=self.config.window_step))
+						target_mfcc_features = np.array(mfcc(target_wav_data, samplerate=target_sample_rate, numcep=self.config.num_mfcc_coeffs,
+																								 nfilt=self.config.num_filters, winlen=self.config.window_len, winstep=self.config.window_step))
 
-					# Aligns the MFCC features matrices using FastDTW.
-					source_mfcc_features, target_mfcc_features = get_dtw_series(source_mfcc_features, target_mfcc_features)
+						# Aligns the MFCC features matrices using FastDTW.
+						source_mfcc_features, target_mfcc_features = get_dtw_series(source_mfcc_features, target_mfcc_features)
 
-					# Pads the MFCC feature matrices (rows) to length config.max_num_frames
-					source_padded_frames = self.pad_sequence(source_mfcc_features)
-					target_padded_frames = self.pad_sequence(target_mfcc_features)
+						# Pads the MFCC feature matrices (rows) to length config.max_num_frames
+						source_padded_frames = self.pad_sequence(source_mfcc_features)
+						target_padded_frames = self.pad_sequence(target_mfcc_features)
 
 
-					inputs.append(source_padded_frames)
-					inputs.append(target_padded_frames)
-					labels.append(0) 
-					labels.append(1) 
+						inputs.append(source_padded_frames)
+						inputs.append(target_padded_frames)
+						labels.append(0) 
+						labels.append(1) 
+				else:
+					for source_fname in os.listdir(SOURCE_DIR):
+						#if index >= 100:
+						#	break
+						#index += 1
+
+						if source_fname == '.DS_Store':
+							continue
+
+						(source_sample_rate, source_wav_data) = wav.read(SOURCE_DIR + source_fname) 
+
+						source_mfcc_features = np.array(mfcc(source_wav_data, samplerate=source_sample_rate, numcep=self.config.num_mfcc_coeffs,
+																								 nfilt=self.config.num_filters, winlen=self.config.window_len, winstep=self.config.window_step))
+						
+						# Aligns the MFCC features matrices using FastDTW.
+						#source_mfcc_features, _ = get_dtw_series(source_mfcc_features, source_mfcc_features)
+
+						# Pads the MFCC feature matrices (rows) to length config.max_num_frames
+						source_padded_frames = self.pad_sequence(source_mfcc_features)
+
+						inputs.append(source_padded_frames)
+						labels.append(1)
 
 				return inputs, labels
 
@@ -345,15 +366,21 @@ def main():
 			init = tf.global_variables_initializer()
 
 			print "Preprocessing data ..."
-			inputs, labels = model.preprocess_data(config)
+			SOURCE_DIR = '../data/cmu_arctic/us-english-male-bdl/wav/'
+			TARGET_DIR = '../data/cmu_arctic/indian-english-male-ksp/wav/'
+			train_inputs, train_labels = model.preprocess_data(config, SOURCE_DIR, TARGET_DIR)
 			print "Finished preprocessing data"
-			all_data = len(inputs)
-			split = all_data / 10
-			train_inputs = inputs[split:]
-			test_inputs = inputs[:split]
+			#all_data = len(inputs)
+			#split = all_data / 10
+			#train_inputs = inputs[split:]
+			#test_inputs = inputs[:split]
 
-			train_labels = labels[split:]
-			test_labels = labels[:split]
+			#train_labels = labels[split:]
+			#test_labels = labels[:split]
+			src = '../data/indian_english_male/'
+			#src = '../data/us_english_male/'
+			#src = '../data/scottish_english_male/'
+			test_inputs, test_labels = model.preprocess_data(config, src)
 
 			# Create a session for running Ops in the Graph
 			with tf.Session() as sess:

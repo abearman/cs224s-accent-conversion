@@ -9,7 +9,7 @@ import pickle
 
 import scipy.io.wavfile as wav
 from python_speech_features import mfcc
-from mcd.metrics import logSpecDbDist
+#from mcd.metrics import logSpecDbDist
 import sounddevice as sd
 
 import tensorflow as tf
@@ -186,8 +186,8 @@ class ANNModel(object):
 				return train_op
 
 
-		def mcd_score(self, features, true_features):
-				"""Evaluates the MCD score for two aligned MFCC feature matrices.
+		"""def mcd_score(self, features, true_features):
+				""Evaluates the MCD score for two aligned MFCC feature matrices.
 	
 				Args:
 					features: np.ndarray of shape (max_num_frames, num_mfcc_coeffs)
@@ -195,13 +195,13 @@ class ANNModel(object):
 
 				Returns:
 					score: A float representing the MCD score.
-				"""
+				""
 				logSpecDbConst = 10.0 / math.log(10.0) * math.sqrt(2.0)
 				diff = features - true_features
 				diff = diff[:,1:]  # Ignore the 0-th coefficient
 				mcd_cols = np.sqrt( (diff*diff).sum(axis=0) )
 				score = np.sum(mcd_cols) / diff.shape[0]
-				return score
+				return score"""
 
 
 		def output_wave_files(self, predicted_mfccs_batch, true_target_mfccs_batch):
@@ -213,12 +213,13 @@ class ANNModel(object):
 					true_target_mfccs_batch: A np.ndarray of shape (batch_size, max_num_frames, num_mfcc_coeffs)
 				"""
 				# Only outputting 1 wavefile in the batch, because otherwise it takes too long
-				for i in range(min(1, predicted_mfccs_batch.shape[0])):
+				#for i in range(min(1, predicted_mfccs_batch.shape[0])):
+				for i in range(0, predicted_mfccs_batch.shape[0]):
 					print "Converting wavefile ", i
 					predicted_mfccs = predicted_mfccs_batch[i,:,:]
 					target_mfccs = true_target_mfccs_batch[i,:,:]
-					self.output_wave_file(predicted_mfccs, 'predicted_wav' + str(i))	
-					self.output_wave_file(target_mfccs, 'true_wav' + str(i))
+					self.output_wave_file(predicted_mfccs, 'predicted_wav_' + str(i))	
+					#self.output_wave_file(target_mfccs, 'true_wav_' + str(i))
 
 
 		def output_wave_file(self, predicted_mfccs, filename):
@@ -364,14 +365,14 @@ class ANNModel(object):
 				true_features_batch = labels_batch
 				self.output_wave_files(features_batch, np.array(true_features_batch))
 
-				mcds_for_batch = []
+				"""mcds_for_batch = []
 				for i in range(len(true_features_batch)):
 					features_single_ex = features_batch[i,:,:]
 					true_features_single_ex = true_features_batch[i]
 					mcd_one_example = self.mcd_score(features_single_ex, true_features_single_ex)
 					mcds_for_batch.append(mcd_one_example)
 
-				return mcds_for_batch	
+				return mcds_for_batch	"""
 
 
 		def validate(self, sess, inputs, labels):
@@ -479,16 +480,16 @@ class ANNModel(object):
 				TARGET_WAV_DIR = DATA_DIR + TARGET_NAME + '/wav/' 
 				MFCC_PAIRS_FILE = 'preprocessed_mfccs/' + SOURCE_NAME + '_' + TARGET_NAME + '.pickle'	
 
-				if os.path.isfile(MFCC_PAIRS_FILE):
-					with open(MFCC_PAIRS_FILE, 'rb') as handle:
-						dictt = pickle.load(handle)
-						inputs = dictt['source']
-						labels = dictt['target']
-				else:
-					inputs, labels = self.process_data(SOURCE_WAV_DIR, TARGET_WAV_DIR)
-					dictt = {'source': inputs, 'target': labels}
-					with open(MFCC_PAIRS_FILE, 'wb') as handle:
-						pickle.dump(dictt, handle, protocol=pickle.HIGHEST_PROTOCOL)
+				#if os.path.isfile(MFCC_PAIRS_FILE):
+				#	with open(MFCC_PAIRS_FILE, 'rb') as handle:
+				#		dictt = pickle.load(handle)
+				#		inputs = dictt['source']
+				#		labels = dictt['target']
+				#else:
+				inputs, labels = self.process_data(SOURCE_WAV_DIR, TARGET_WAV_DIR)
+				dictt = {'source': inputs, 'target': labels}
+				with open(MFCC_PAIRS_FILE, 'wb') as handle:
+					pickle.dump(dictt, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 				return inputs, labels 
 
@@ -542,17 +543,16 @@ def run(SOURCE_NAME, TARGET_NAME, MODEL_DIR, EXISTING_MODEL_NAME, MODEL_NAME_TO_
 				else: # Validate
 					model.saver = tf.train.import_meta_graph(MODEL_DIR + EXISTING_MODEL_NAME + ".meta") 
 					model.saver.restore(sess, MODEL_DIR + EXISTING_MODEL_NAME) 
-					mcd_score = model.validate(sess, val_inputs, val_labels) 
-					print "mcd_score: ", mcd_score
+					#mcd_score = model.validate(sess, val_inputs, val_labels) 
+					model.validate(sess, val_inputs, val_labels) 
+					#print "mcd_score: ", mcd_score
 
 
 if __name__ == "__main__":
-	SOURCE_NAME = 'us-english-female-clb'							# NEED TO SPECIFY: The name of the source accent
-	TARGET_NAME = 'us-english-male-bdl'								# NEED TO SPECIFY: The name of the target accent
-	MODEL_DIR = 'saved_models/us_female_to_male/'			# NEED TO SPECIFY: The relative model directory (to save to if training, 
-																										#									 or load an existing model from if validating) 
-	EXISTING_MODEL_NAME = 'mfcc_model_epoch_4568'			# NEED TO SPECIFY: The name of the existing model to load (either to continue training
-																										#									 or to evaluate) 
+	SOURCE_NAME = 'us-english-male-bdl'							# NEED TO SPECIFY: The name of the source accent
+	TARGET_NAME = 'indian-english-male-ksp'								# NEED TO SPECIFY: The name of the target accent
+	MODEL_DIR = 'saved_models/us_male_to_indian/'			# NEED TO SPECIFY: The relative model directory (to save to if training, or load an existing model from if validating) 
+	EXISTING_MODEL_NAME = 'mfcc_model_epoch_3129'			# NEED TO SPECIFY: The name of the existing model to load (either to continue training or to evaluate) 
 	MODEL_NAME_TO_SAVE = 'mfcc_model'									# NEED TO SPECIFY: The name of the new model to save to during training
 
 	run(SOURCE_NAME, TARGET_NAME, MODEL_DIR, EXISTING_MODEL_NAME, MODEL_NAME_TO_SAVE, train=False, restore_model=False) 
